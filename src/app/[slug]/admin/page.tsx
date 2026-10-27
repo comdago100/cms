@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useEffect, use } from 'react'
+import { useState, useEffect } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useParams } from 'next/navigation'
 
-export default function CompanyAdminPage({ params }: { params: Promise<{ slug: string }> }) {
-  const unwrappedParams = use(params)
-  const companySlug = unwrappedParams.slug
+export default function CompanyAdminPage() {
+  const params = useParams()
+  const companySlug = (params?.slug as string) || ''
 
   const [companyName, setCompanyName] = useState('')
   const [title, setTitle] = useState('')
@@ -16,6 +17,8 @@ export default function CompanyAdminPage({ params }: { params: Promise<{ slug: s
 
   // 업체 정보 및 해당 업체의 제품 목록 불러오기
   const fetchData = async () => {
+    if (!companySlug) return
+
     // 1. 업체명 조회
     const { data: compData } = await supabase
       .from('companies')
@@ -42,7 +45,9 @@ export default function CompanyAdminPage({ params }: { params: Promise<{ slug: s
   }
 
   useEffect(() => {
-    fetchData()
+    if (companySlug) {
+      fetchData()
+    }
   }, [companySlug])
 
   // 제품 등록 및 이미지 업로드 함수
