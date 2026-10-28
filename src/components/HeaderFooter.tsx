@@ -114,8 +114,16 @@ export function Footer() {
           <p>
             {t.footer.phone}: {siteConfig.phone} | {t.footer.fax}: {siteConfig.fax} | {t.footer.email}: {siteConfig.email}
           </p>
-          <p className="mt-2 text-slate-500">
-            Copyright © {siteConfig.copyrightYear} {siteConfig.englishName} All rights reserved.
+          <p className="mt-2 flex items-center justify-between text-slate-500">
+            <span>
+              Copyright © {siteConfig.copyrightYear} {siteConfig.englishName} All rights reserved.
+            </span>
+            <Link
+              href="/noksan/admin"
+              className="text-slate-500 hover:text-slate-300 transition-colors"
+            >
+              ⚙️ Admin (CMS)
+            </Link>
           </p>
         </div>
       </div>
