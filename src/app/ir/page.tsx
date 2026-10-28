@@ -59,6 +59,12 @@ export default function IrPage() {
       category: useTranslated ? seedMatch.category : c.subCategory || "공시/IR",
       title: useTranslated ? seedMatch.title : c.title,
       source: useTranslated ? seedMatch.source : c.specOrMaterial || "IR 자료실",
+      linkUrl:
+        c.linkUrl !== undefined
+          ? c.linkUrl
+          : c.id.startsWith("seed_ir_")
+          ? "https://dart.fss.or.kr"
+          : "",
     };
   });
 
@@ -128,7 +134,21 @@ export default function IrPage() {
                         {item.category}
                       </span>
                     </td>
-                    <td className="px-6 py-4 font-semibold text-slate-900">{item.title}</td>
+                    <td className="px-6 py-4 font-semibold text-slate-900">
+                    {item.linkUrl ? (
+                      <a
+                        href={item.linkUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 text-slate-900 hover:text-blue-600 hover:underline transition-colors"
+                      >
+                        <span>{item.title}</span>
+                        <span className="text-xs font-normal text-blue-600">↗</span>
+                      </a>
+                    ) : (
+                      item.title
+                    )}
+                  </td>
                     <td className="px-6 py-4 text-slate-600">{item.source}</td>
                     <td className="px-6 py-4 text-slate-500">{item.date}</td>
                   </tr>

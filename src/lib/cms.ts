@@ -14,6 +14,7 @@ export interface CmsItem {
   maker?: string;
   description?: string;
   imageUrl?: string;
+  linkUrl?: string;
   createdAt: string;
 }
 
@@ -204,6 +205,7 @@ function getSeedItems(): CmsItem[] {
     qtyOrDate: item.date,
     description: `${item.source} 등록 자료`,
     imageUrl: "",
+    linkUrl: "https://dart.fss.or.kr",
     createdAt: now,
   }));
 
@@ -493,6 +495,7 @@ function encodeMeta(item: Omit<CmsItem, "id" | "createdAt">): string {
     qtyOrDate: item.qtyOrDate || "",
     maker: item.maker || "",
     description: item.description || "",
+    linkUrl: item.linkUrl || "",
   });
 }
 
@@ -510,6 +513,7 @@ function decodeRow(row: any): CmsItem {
         maker: parsed.maker || "",
         description: parsed.description || "",
         imageUrl: row.image_url || "",
+        linkUrl: parsed.linkUrl || "",
         createdAt: row.created_at || new Date().toISOString(),
       };
     }

@@ -121,6 +121,7 @@ export default function AdminClient({ slug }: { slug: string }) {
   const [maker, setMaker] = useState("");
   const [description, setDescription] = useState("");
   const [imageUrl, setImageUrl] = useState("");
+  const [linkUrl, setLinkUrl] = useState("");
   const [file, setFile] = useState<File | null>(null);
 
   useEffect(() => {
@@ -174,6 +175,7 @@ export default function AdminClient({ slug }: { slug: string }) {
     setMaker("");
     setDescription("");
     setImageUrl("");
+    setLinkUrl("");
     setFile(null);
   };
 
@@ -201,6 +203,13 @@ export default function AdminClient({ slug }: { slug: string }) {
     setMaker(item.maker || "");
     setDescription(item.description || "");
     setImageUrl(item.imageUrl?.startsWith("data:image/svg") ? "" : item.imageUrl || "");
+    setLinkUrl(
+      item.linkUrl !== undefined
+        ? item.linkUrl
+        : item.id.startsWith("seed_ir_")
+        ? "https://dart.fss.or.kr"
+        : ""
+    );
     setFile(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
@@ -224,6 +233,7 @@ export default function AdminClient({ slug }: { slug: string }) {
         maker: maker.trim(),
         description: description.trim(),
         imageUrl: imageUrl.trim(),
+        linkUrl: linkUrl.trim(),
       };
 
       if (editingId) {
@@ -1401,6 +1411,24 @@ export default function AdminClient({ slug }: { slug: string }) {
                   />
                 </div>
 
+                {activeTab === "ir" && (
+                  <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4">
+                    <label className="block text-xs font-bold text-blue-900 mb-1.5">
+                      🔗 제목 클릭 시 이동할 DART 공시 / 외부 링크 주소 (URL)
+                    </label>
+                    <input
+                      type="url"
+                      value={linkUrl}
+                      onChange={(e) => setLinkUrl(e.target.value)}
+                      placeholder="예: https://dart.fss.or.kr/dsaf001/main.do?rcpNo=... (입력 시 공시 제목을 누르면 해당 주소로 이동합니다)"
+                      className="w-full rounded-lg border border-blue-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 focus:border-blue-600 focus:outline-none"
+                    />
+                    <p className="mt-1.5 text-[11px] text-slate-600">
+                      * DART 전자공시 상세 페이지 주소나 첨부 문서 링크를 입력하면 홈페이지 투자정보 목록과 아래 관리자 목록에서 제목 클릭 시 새 창으로 바로 연결됩니다.
+                    </p>
+                  </div>
+                )}
+
                 {currentTabConfig.showImage && (
                   <div className="grid gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-2">
                     <div>
@@ -1497,22 +1525,60 @@ export default function AdminClient({ slug }: { slug: string }) {
                         </div>
                       )}
                       <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="rounded bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
-                            {item.subCategory}
-                          </span>
-                          <h3 className="font-bold text-slate-900">{item.title}</h3>
-                        </div>
-                        <p className="mt-1 text-xs text-slate-600">
-                          {item.specOrMaterial && `${currentTabConfig.specLabel}: ${item.specOrMaterial}`}
-                          {item.qtyOrDate && ` | ${currentTabConfig.qtyLabel}: ${item.qtyOrDate}`}
-                          {item.maker && ` | 제조사: ${item.maker}`}
-                        </p>
-                        {item.description && (
-                          <p className="mt-1 text-xs text-slate-500 line-clamp-1">
-                            {item.description}
-                          </p>
-                        )}
+                        {(() => {
+                          const resolvedLink =
+                            item.linkUrl !== undefined
+                              ? item.linkUrl
+                              : item.id.startsWith("seed_ir_")
+                              ? "https://dart.fss.or.kr"
+                              : "";
+                          return (
+                            <>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="rounded bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
+                                  {item.subCategory}
+                                </span>
+                                {resolvedLink ? (
+                                  <a
+                                    href={resolvedLink}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="font-bold text-slate-900 hover:text-blue-600 hover:underline inline-flex items-center gap-1 transition-colors"
+                                    title="클릭 시 연결된 링크로 이동"
+                                  >
+                                    {item.title}
+                                    <span className="text-xs font-normal text-blue-600">↗</span>
+                                  </a>
+                                ) : (
+                                  <h3 className="font-bold text-slate-900">{item.title}</h3>
+                                )}
+                              </div>
+                              <p className="mt-1 text-xs text-slate-600">
+                                {item.specOrMaterial && `${currentTabConfig.specLabel}: ${item.specOrMaterial}`}
+                                {item.qtyOrDate && ` | ${currentTabConfig.qtyLabel}: ${item.qtyOrDate}`}
+                                {item.maker && ` | 제조사: ${item.maker}`}
+                              </p>
+                              {resolvedLink && (
+                                <p className="mt-1 text-xs text-blue-600 break-all">
+                                  🔗 연결 링크:{" "}
+                                  <a
+                                    href={resolvedLink}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="underline hover:text-blue-800"
+                                  >
+                                    {resolvedLink}
+                                  </a>
+                                </p>
+                              )}
+                              {item.description && (
+                                <p className="mt-1 text-xs text-slate-500 line-clamp-1">
+                                  {item.description}
+                                </p>
+                              )}
+                            </>
+                          );
+                        })()}
                       </div>
                     </div>
 
