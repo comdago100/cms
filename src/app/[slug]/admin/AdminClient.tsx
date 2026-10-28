@@ -19,9 +19,16 @@ import {
   getSupportInquiries,
   toggleInquiryStatus,
   deleteSupportInquiry,
+  HomeConfig,
+  HomeBannerSlide,
+  defaultHomeConfig,
+  getHomeConfig,
+  saveHomeConfig,
+  resetHomeConfig,
+  uploadMediaFileToUrl,
 } from "@/lib/cms";
 
-type AdminMainTab = "settings" | CmsCategory | "inquiries";
+type AdminMainTab = "home" | "settings" | CmsCategory | "inquiries";
 
 const CATEGORY_TABS: {
   id: CmsCategory;
@@ -98,7 +105,8 @@ const CATEGORY_TABS: {
 export default function AdminClient({ slug }: { slug: string }) {
   const companySlug = slug || "noksan";
 
-  const [activeTab, setActiveTab] = useState<AdminMainTab>("settings");
+  const [activeTab, setActiveTab] = useState<AdminMainTab>("home");
+  const [homeForm, setHomeForm] = useState<HomeConfig>(defaultHomeConfig);
   const [settingsForm, setSettingsForm] = useState<SiteSettings>(defaultSiteSettings);
   const [items, setItems] = useState<CmsItem[]>([]);
   const [inquiries, setInquiries] = useState<SupportInquiry[]>([]);
@@ -121,13 +129,14 @@ export default function AdminClient({ slug }: { slug: string }) {
       const tabParam = params.get("tab") as AdminMainTab | null;
       if (
         tabParam &&
-        ["settings", "facilities", "products", "technology", "ir", "inquiries"].includes(
+        ["home", "settings", "facilities", "products", "technology", "ir", "inquiries"].includes(
           tabParam
         )
       ) {
         setActiveTab(tabParam);
       }
     }
+    setHomeForm(getHomeConfig(companySlug));
     setSettingsForm(getSiteSettings(companySlug));
     setInquiries(getSupportInquiries(companySlug));
   }, [companySlug]);
@@ -146,6 +155,8 @@ export default function AdminClient({ slug }: { slug: string }) {
       setInquiries(getSupportInquiries(companySlug));
     } else if (activeTab === "settings") {
       setSettingsForm(getSiteSettings(companySlug));
+    } else if (activeTab === "home") {
+      setHomeForm(getHomeConfig(companySlug));
     }
   };
 
@@ -248,8 +259,88 @@ export default function AdminClient({ slug }: { slug: string }) {
     alert("기본 항목들이 초기 상태로 복원되었습니다.");
   };
 
+  const handleSaveHomeConfig = (e: React.FormEvent) => {
+    e.preventDefault();
+    saveHomeConfig(companySlug, homeForm);
+    alert("홈 화면(배너 영상/이미지 슬라이드, 핵심 역량, 하단 배너) 설정이 모두 저장되었습니다!");
+  };
+
+  const handleResetHomeConfig = () => {
+    if (!confirm("홈 화면 배너와 섹션 설정을 초기 상태로 되돌리시겠습니까?")) return;
+    const reset = resetHomeConfig(companySlug);
+    setHomeForm(reset);
+    alert("홈 화면 설정이 초기값으로 복원되었습니다.");
+  };
+
+  const updateSlideField = (idx: number, patch: Partial<HomeBannerSlide>) => {
+    const nextSlides = homeForm.slides.map((s, i) => (i === idx ? { ...s, ...patch } : s));
+    setHomeForm({ ...homeForm, slides: nextSlides });
+  };
+
+  const handleAddSlide = () => {
+    const newSlide: HomeBannerSlide = {
+      id: `slide_${Date.now()}`,
+      badge: "NEW PROMOTION BANNER",
+      title1: "신규 설비 및 기술 역량 안내,",
+      title2: "최고의 품질로 보답하는",
+      highlightName: settingsForm.name,
+      description: "배너 설명 문구를 입력해 주세요. 배경으로 이미지 또는 영상(MP4)을 넣을 수 있습니다.",
+      mediaType: "default",
+      mediaUrl: "",
+      primaryBtnText: "제품소개 보러가기",
+      primaryBtnHref: "/products",
+      secondaryBtnText: "견적 및 제작 문의",
+      secondaryBtnHref: "/support",
+      active: true,
+    };
+    setHomeForm({ ...homeForm, slides: [...homeForm.slides, newSlide] });
+  };
+
+  const handleRemoveSlide = (idx: number) => {
+    if (homeForm.slides.length <= 1) {
+      alert("최소 1개의 배너 슬라이드는 유지되어야 합니다.");
+      return;
+    }
+    if (!confirm(`배너 #${idx + 1} 슬라이드를 삭제하시겠습니까?`)) return;
+    setHomeForm({
+      ...homeForm,
+      slides: homeForm.slides.filter((_, i) => i !== idx),
+    });
+  };
+
+  const handleSlideMediaUpload = async (idx: number, mediaFile: File | null) => {
+    if (!mediaFile) return;
+    setLoading(true);
+    try {
+      const url = await uploadMediaFileToUrl(companySlug, mediaFile);
+      const isVideo = mediaFile.type.startsWith("video/");
+      updateSlideField(idx, {
+        mediaType: isVideo ? "video" : "image",
+        mediaUrl: url,
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCoreImageUpload = async (idx: number, imgFile: File | null) => {
+    if (!imgFile) return;
+    setLoading(true);
+    try {
+      const url = await uploadMediaFileToUrl(companySlug, imgFile);
+      const nextCores = homeForm.cores.map((c, i) =>
+        i === idx ? { ...c, imageUrl: url } : c
+      );
+      setHomeForm({ ...homeForm, cores: nextCores });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const previewHref =
-    activeTab === "settings"
+    activeTab === "home"
+      ? "/"
+      : activeTab === "settings"
       ? "/about"
       : activeTab === "inquiries"
       ? "/support"
@@ -268,7 +359,7 @@ export default function AdminClient({ slug }: { slug: string }) {
               🛠️ {settingsForm.name} 통합 관리자 페이지
             </h1>
             <p className="mt-1 text-xs text-slate-400">
-              회사소개(CEO인사말·개요·비전·오시는길 구글지도 주소), 설비현황, 제품소개, 기술정보, 투자정보, 고객지원의 모든 기존 항목과 신규 항목을 수정·관리할 수 있습니다.
+              홈 화면(멀티 배너 영상·이미지 슬라이드), 회사소개, 설비현황, 제품소개, 기술정보, 투자정보, 고객지원의 모든 기능을 관리자에서 컨트롤할 수 있습니다.
             </p>
           </div>
           <Link
@@ -279,8 +370,20 @@ export default function AdminClient({ slug }: { slug: string }) {
           </Link>
         </div>
 
-        {/* 6대 전체 메뉴 관리 탭 */}
-        <div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+        {/* 7대 전체 메뉴 관리 탭 */}
+        <div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+          <button
+            type="button"
+            onClick={() => setActiveTab("home")}
+            className={`rounded-xl px-3 py-3.5 text-xs font-bold transition-all cursor-pointer ${
+              activeTab === "home"
+                ? "bg-blue-600 text-white shadow-sm"
+                : "bg-white text-slate-700 border border-slate-200 hover:bg-slate-50"
+            }`}
+          >
+            🏠 홈 화면·배너관리
+          </button>
+
           <button
             type="button"
             onClick={() => setActiveTab("settings")}
@@ -323,6 +426,521 @@ export default function AdminClient({ slug }: { slug: string }) {
             📞 고객지원·문의내역
           </button>
         </div>
+
+        {/* 0) 홈 화면 · 멀티 배너(영상/이미지/기본화면) · 핵심역량 컨트롤 탭 */}
+        {activeTab === "home" && (
+          <form
+            onSubmit={handleSaveHomeConfig}
+            className="mt-6 space-y-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-xs sm:p-8"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-4">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">
+                  🏠 홈 화면 멀티 배너(영상·이미지·기본화면) 및 기능별 섹션 관리
+                </h2>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  메인 배너를 2~3개 이상 자유롭게 구성하고, 각 슬라이드마다 동영상(MP4/URL), 고화질 이미지, 또는 깔끔한 기본 배경 중 원하는 방식을 선택해 교체할 수 있습니다.
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleAddSlide}
+                  className="rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-bold text-white hover:bg-slate-800 cursor-pointer"
+                >
+                  + 배너 슬라이드 추가
+                </button>
+                <button
+                  type="button"
+                  onClick={handleResetHomeConfig}
+                  className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                >
+                  초기값 복원
+                </button>
+              </div>
+            </div>
+
+            {/* 배너 자동 롤링 간격 설정 */}
+            <div className="flex flex-wrap items-center gap-4 rounded-xl bg-slate-50 p-4 border border-slate-200">
+              <label className="text-xs font-bold text-slate-700">
+                ⏱️ 배너 자동 전환 간격 (밀리초, 1000 = 1초):
+              </label>
+              <input
+                type="number"
+                min={2500}
+                step={500}
+                value={homeForm.autoPlayIntervalMs}
+                onChange={(e) =>
+                  setHomeForm({
+                    ...homeForm,
+                    autoPlayIntervalMs: Number(e.target.value) || 5000,
+                  })
+                }
+                className="w-32 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-bold text-blue-700"
+              />
+              <span className="text-xs text-slate-500">
+                현재 {(homeForm.autoPlayIntervalMs / 1000).toFixed(1)}초마다 다음 배너로 자동 전환됩니다.
+              </span>
+            </div>
+
+            {/* 슬라이드별 상세 편집 카드 리스트 */}
+            <div className="space-y-6">
+              <h3 className="text-sm font-bold text-blue-700">
+                1. 메인 히어로 배너 슬라이드 목록 (총 {homeForm.slides.length}개)
+              </h3>
+
+              {homeForm.slides.map((slide, idx) => (
+                <div
+                  key={slide.id}
+                  className="rounded-2xl border border-slate-200 bg-slate-50/60 p-5 sm:p-6 space-y-4"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-3">
+                    <div className="flex items-center gap-3">
+                      <span className="rounded-lg bg-blue-600 px-3 py-1 text-xs font-extrabold text-white">
+                        배너 #{idx + 1}
+                      </span>
+                      <label className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-700 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={slide.active !== false}
+                          onChange={(e) =>
+                            updateSlideField(idx, { active: e.target.checked })
+                          }
+                          className="h-4 w-4 rounded border-slate-300 text-blue-600"
+                        />
+                        홈 화면에 이 배너 노출하기
+                      </label>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveSlide(idx)}
+                      className="text-xs font-semibold text-red-600 hover:underline cursor-pointer"
+                    >
+                      이 배너 삭제
+                    </button>
+                  </div>
+
+                  {/* 배경 타입 선택 (기본 화면 / 이미지 배너 / 동영상 배너) */}
+                  <div className="grid gap-4 lg:grid-cols-12 items-start">
+                    <div className="lg:col-span-5 space-y-3 rounded-xl border border-slate-200 bg-white p-4">
+                      <label className="block text-xs font-bold text-slate-800">
+                        배경 화면 방식 선택 (기본화면 / 이미지 / 동영상)
+                      </label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {(
+                          [
+                            { type: "default", label: "🎨 기본 화면" },
+                            { type: "image", label: "🖼️ 이미지 배너" },
+                            { type: "video", label: "🎬 동영상 배너" },
+                          ] as const
+                        ).map((opt) => (
+                          <button
+                            key={opt.type}
+                            type="button"
+                            onClick={() =>
+                              updateSlideField(idx, { mediaType: opt.type })
+                            }
+                            className={`rounded-lg py-2 px-2 text-xs font-bold border transition-all cursor-pointer ${
+                              slide.mediaType === opt.type
+                                ? "border-blue-600 bg-blue-50 text-blue-700"
+                                : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
+                            }`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      {slide.mediaType !== "default" && (
+                        <div className="space-y-2 pt-2">
+                          <label className="block text-[11px] font-semibold text-slate-600">
+                            {slide.mediaType === "video"
+                              ? "동영상 파일(.mp4, .webm) 업로드 또는 영상 URL 입력"
+                              : "배너 이미지 파일 업로드 또는 이미지 URL 입력"}
+                          </label>
+                          <input
+                            type="file"
+                            accept={
+                              slide.mediaType === "video" ? "video/*" : "image/*"
+                            }
+                            onChange={(e) =>
+                              handleSlideMediaUpload(idx, e.target.files?.[0] || null)
+                            }
+                            className="w-full text-xs text-slate-600 file:mr-2 file:rounded-md file:border-0 file:bg-blue-600 file:px-3 file:py-1.5 file:text-xs file:font-semibold file:text-white hover:file:bg-blue-500"
+                          />
+                          <input
+                            type="text"
+                            value={
+                              slide.mediaUrl.startsWith("data:")
+                                ? ""
+                                : slide.mediaUrl
+                            }
+                            onChange={(e) =>
+                              updateSlideField(idx, { mediaUrl: e.target.value })
+                            }
+                            placeholder={
+                              slide.mediaType === "video"
+                                ? "https://.../factory-video.mp4"
+                                : "https://.../banner-image.jpg"
+                            }
+                            className="w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs"
+                          />
+                        </div>
+                      )}
+
+                      {/* 실시간 미니 프리뷰 */}
+                      <div className="relative h-32 w-full overflow-hidden rounded-lg bg-slate-950 flex items-center justify-center text-white">
+                        {slide.mediaType === "video" && slide.mediaUrl ? (
+                          <video
+                            src={slide.mediaUrl}
+                            muted
+                            loop
+                            autoPlay
+                            playsInline
+                            className="h-full w-full object-cover opacity-65"
+                          />
+                        ) : slide.mediaType === "image" && slide.mediaUrl ? (
+                          <img
+                            src={slide.mediaUrl}
+                            alt={slide.title1}
+                            className="h-full w-full object-cover opacity-65"
+                          />
+                        ) : (
+                          <div className="h-full w-full bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900" />
+                        )}
+                        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/35 p-3 text-center">
+                          <span className="text-[10px] text-blue-300 font-semibold">
+                            {slide.badge}
+                          </span>
+                          <p className="mt-1 text-xs font-bold line-clamp-1">
+                            {slide.title1} {slide.highlightName}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 배너 문구 및 버튼 링크 편집 */}
+                    <div className="lg:col-span-7 grid gap-3 sm:grid-cols-2">
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          상단 뱃지 문구
+                        </label>
+                        <input
+                          type="text"
+                          value={slide.badge}
+                          onChange={(e) =>
+                            updateSlideField(idx, { badge: e.target.value })
+                          }
+                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          메인 타이틀 첫째 줄
+                        </label>
+                        <input
+                          type="text"
+                          value={slide.title1}
+                          onChange={(e) =>
+                            updateSlideField(idx, { title1: e.target.value })
+                          }
+                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          메인 타이틀 둘째 줄 + 강조문구(파란색)
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={slide.title2}
+                            onChange={(e) =>
+                              updateSlideField(idx, { title2: e.target.value })
+                            }
+                            placeholder="신뢰할 수 있는 파트너"
+                            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                          />
+                          <input
+                            type="text"
+                            value={slide.highlightName}
+                            onChange={(e) =>
+                              updateSlideField(idx, {
+                                highlightName: e.target.value,
+                              })
+                            }
+                            placeholder="강조 텍스트"
+                            className="w-40 shrink-0 rounded-lg border border-blue-300 bg-blue-50/40 px-3 py-2 text-sm font-bold text-blue-700"
+                          />
+                        </div>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          배너 서브 설명 문구
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={slide.description}
+                          onChange={(e) =>
+                            updateSlideField(idx, { description: e.target.value })
+                          }
+                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          버튼 1 텍스트 및 이동 경로
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={slide.primaryBtnText}
+                            onChange={(e) =>
+                              updateSlideField(idx, {
+                                primaryBtnText: e.target.value,
+                              })
+                            }
+                            className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs"
+                          />
+                          <input
+                            type="text"
+                            value={slide.primaryBtnHref}
+                            onChange={(e) =>
+                              updateSlideField(idx, {
+                                primaryBtnHref: e.target.value,
+                              })
+                            }
+                            className="w-28 shrink-0 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-mono"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          버튼 2 텍스트 및 이동 경로
+                        </label>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={slide.secondaryBtnText}
+                            onChange={(e) =>
+                              updateSlideField(idx, {
+                                secondaryBtnText: e.target.value,
+                              })
+                            }
+                            className="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs"
+                          />
+                          <input
+                            type="text"
+                            value={slide.secondaryBtnHref}
+                            onChange={(e) =>
+                              updateSlideField(idx, {
+                                secondaryBtnHref: e.target.value,
+                              })
+                            }
+                            className="w-28 shrink-0 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-mono"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* 2. 홈 화면 핵심 사업 분야 카드 관리 */}
+            <div className="border-t border-slate-200 pt-6 space-y-4">
+              <h3 className="text-sm font-bold text-blue-700">
+                2. 홈 화면 [핵심 사업 분야] 섹션 제목 · 카드 3종 수정
+              </h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    섹션 메인 제목
+                  </label>
+                  <input
+                    type="text"
+                    value={homeForm.coreSectionTitle}
+                    onChange={(e) =>
+                      setHomeForm({ ...homeForm, coreSectionTitle: e.target.value })
+                    }
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">
+                    섹션 서브 설명
+                  </label>
+                  <input
+                    type="text"
+                    value={homeForm.coreSectionSubtitle}
+                    onChange={(e) =>
+                      setHomeForm({
+                        ...homeForm,
+                        coreSectionSubtitle: e.target.value,
+                      })
+                    }
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-4 sm:grid-cols-3">
+                {homeForm.cores.map((core, idx) => (
+                  <div
+                    key={core.id}
+                    className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3"
+                  >
+                    <span className="text-xs font-bold text-blue-700">
+                      핵심역량 카드 #{idx + 1}
+                    </span>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                        카드 제목
+                      </label>
+                      <input
+                        type="text"
+                        value={core.title}
+                        onChange={(e) => {
+                          const next = homeForm.cores.map((c, i) =>
+                            i === idx ? { ...c, title: e.target.value } : c
+                          );
+                          setHomeForm({ ...homeForm, cores: next });
+                        }}
+                        className="w-full rounded border border-slate-300 bg-white px-2.5 py-1.5 text-sm font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                        카드 설명
+                      </label>
+                      <textarea
+                        rows={3}
+                        value={core.desc}
+                        onChange={(e) => {
+                          const next = homeForm.cores.map((c, i) =>
+                            i === idx ? { ...c, desc: e.target.value } : c
+                          );
+                          setHomeForm({ ...homeForm, cores: next });
+                        }}
+                        className="w-full rounded border border-slate-300 bg-white px-2.5 py-1.5 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                        카드 썸네일 사진 교체 (선택)
+                      </label>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) =>
+                          handleCoreImageUpload(idx, e.target.files?.[0] || null)
+                        }
+                        className="w-full text-[11px] text-slate-600 file:mr-2 file:rounded file:border-0 file:bg-blue-600 file:px-2.5 file:py-1 file:text-[11px] file:font-semibold file:text-white"
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* 3. 홈 하단 바로가기 배너 2종 컨트롤 */}
+            <div className="border-t border-slate-200 pt-6 space-y-4">
+              <h3 className="text-sm font-bold text-blue-700">
+                3. 홈 하단 바로가기 배너 2종 (설비현황 / 견적문의) 노출 및 문구 설정
+              </h3>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="rounded-xl border border-slate-200 p-4 space-y-2">
+                  <label className="inline-flex items-center gap-2 text-xs font-bold text-slate-800 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={homeForm.showFacilitiesBanner}
+                      onChange={(e) =>
+                        setHomeForm({
+                          ...homeForm,
+                          showFacilitiesBanner: e.target.checked,
+                        })
+                      }
+                      className="h-4 w-4 rounded text-blue-600"
+                    />
+                    좌측 [보유 설비 현황] 배너 노출
+                  </label>
+                  <input
+                    type="text"
+                    value={homeForm.facilitiesBannerTitle}
+                    onChange={(e) =>
+                      setHomeForm({
+                        ...homeForm,
+                        facilitiesBannerTitle: e.target.value,
+                      })
+                    }
+                    className="w-full rounded border border-slate-300 px-3 py-1.5 text-sm font-bold"
+                  />
+                  <input
+                    type="text"
+                    value={homeForm.facilitiesBannerDesc}
+                    onChange={(e) =>
+                      setHomeForm({
+                        ...homeForm,
+                        facilitiesBannerDesc: e.target.value,
+                      })
+                    }
+                    className="w-full rounded border border-slate-300 px-3 py-1.5 text-xs"
+                  />
+                </div>
+
+                <div className="rounded-xl border border-slate-200 p-4 space-y-2">
+                  <label className="inline-flex items-center gap-2 text-xs font-bold text-slate-800 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={homeForm.showSupportBanner}
+                      onChange={(e) =>
+                        setHomeForm({
+                          ...homeForm,
+                          showSupportBanner: e.target.checked,
+                        })
+                      }
+                      className="h-4 w-4 rounded text-blue-600"
+                    />
+                    우측 [고객지원 및 견적문의] 배너 노출
+                  </label>
+                  <input
+                    type="text"
+                    value={homeForm.supportBannerTitle}
+                    onChange={(e) =>
+                      setHomeForm({
+                        ...homeForm,
+                        supportBannerTitle: e.target.value,
+                      })
+                    }
+                    className="w-full rounded border border-slate-300 px-3 py-1.5 text-sm font-bold"
+                  />
+                  <input
+                    type="text"
+                    value={homeForm.supportBannerDesc}
+                    onChange={(e) =>
+                      setHomeForm({
+                        ...homeForm,
+                        supportBannerDesc: e.target.value,
+                      })
+                    }
+                    className="w-full rounded border border-slate-300 px-3 py-1.5 text-xs"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <button
+                type="submit"
+                disabled={loading}
+                className="rounded-xl bg-blue-600 px-8 py-3.5 text-sm font-bold text-white hover:bg-blue-500 transition-colors cursor-pointer"
+              >
+                💾 홈 화면·배너 설정 모두 저장하기
+              </button>
+            </div>
+          </form>
+        )}
 
         {/* 1) 회사소개 · 주소(구글지도) · 재무지표 · 연락처 통합 수정 탭 */}
         {activeTab === "settings" && (

@@ -52,9 +52,49 @@ export interface SupportInquiry {
   createdAt: string;
 }
 
+export type HeroMediaType = "default" | "image" | "video";
+
+export interface HomeBannerSlide {
+  id: string;
+  badge: string;
+  title1: string;
+  title2: string;
+  highlightName: string;
+  description: string;
+  mediaType: HeroMediaType;
+  mediaUrl: string; // 이미지 URL/DataURL 또는 동영상(.mp4 등) URL/DataURL
+  primaryBtnText: string;
+  primaryBtnHref: string;
+  secondaryBtnText: string;
+  secondaryBtnHref: string;
+  active: boolean;
+}
+
+export interface HomeCoreItem {
+  id: string;
+  title: string;
+  desc: string;
+  imageUrl?: string;
+}
+
+export interface HomeConfig {
+  autoPlayIntervalMs: number;
+  slides: HomeBannerSlide[];
+  coreSectionTitle: string;
+  coreSectionSubtitle: string;
+  cores: HomeCoreItem[];
+  showFacilitiesBanner: boolean;
+  facilitiesBannerTitle: string;
+  facilitiesBannerDesc: string;
+  showSupportBanner: boolean;
+  supportBannerTitle: string;
+  supportBannerDesc: string;
+}
+
 const STORAGE_KEY_PREFIX = "noksan_cms_items_v2_";
 const SETTINGS_KEY_PREFIX = "noksan_site_settings_v2_";
 const INQUIRIES_KEY_PREFIX = "noksan_inquiries_v2_";
+const HOME_CONFIG_KEY_PREFIX = "noksan_home_config_v2_";
 
 export const defaultSiteSettings: SiteSettings = {
   name: siteConfig.name,
@@ -215,6 +255,150 @@ export function resetSiteSettings(slug = "noksan"): SiteSettings {
     window.dispatchEvent(new Event("cms-updated"));
   }
   return defaultSiteSettings;
+}
+
+export const defaultHomeConfig: HomeConfig = {
+  autoPlayIntervalMs: 5500,
+  slides: [
+    {
+      id: "slide_1",
+      badge: "부산 녹산국가산업단지 강소기업",
+      title1: "정밀 주물부터 초정밀 가공까지,",
+      title2: "신뢰할 수 있는 제조 파트너",
+      highlightName: siteConfig.name,
+      description:
+        "축적된 기술력과 최신 CNC 설비를 바탕으로 선박, 중장비, 산업기계 핵심 부품을 최고의 품질로 생산합니다.",
+      mediaType: "image",
+      mediaUrl: makeSvgDataUrl(
+        "SMART FOUNDRY & CNC MACHINING",
+        "주물 원소재부터 초정밀 5축 가공까지 원스톱 생산",
+        "blue"
+      ),
+      primaryBtnText: "제품소개 보러가기",
+      primaryBtnHref: "/products",
+      secondaryBtnText: "견적 및 제작 문의",
+      secondaryBtnHref: "/support",
+      active: true,
+    },
+    {
+      id: "slide_2",
+      badge: "HIGH-PRECISION CNC FACILITIES",
+      title1: "대형 문형 보링기 · 5축 머시닝센터 가동,",
+      title2: "고난도 대형·복합 부품 완벽 대응",
+      highlightName: "±0.005mm 정밀보증",
+      description:
+        "수직·수평 머시닝센터(MCT), CNC 선반, 3차원 측정기(CMM)를 통해 엄격한 치수 정밀도와 납기를 보장합니다.",
+      mediaType: "image",
+      mediaUrl: makeSvgDataUrl(
+        "ULTRA-PRECISION CNC & 3D CMM",
+        "머시닝센터 · 대형 보링기 · 3차원 정밀 측정 시스템",
+        "indigo"
+      ),
+      primaryBtnText: "설비현황 확인하기",
+      primaryBtnHref: "/facilities",
+      secondaryBtnText: "기술·인증서 보기",
+      secondaryBtnHref: "/technology",
+      active: true,
+    },
+    {
+      id: "slide_3",
+      badge: "GLOBAL QUALITY & MARINE CERTIFIED",
+      title1: "ISO 9001/14001 · 국제 선급(KR/DNV) 승인,",
+      title2: "글로벌 시장을 선도하는 기술 경쟁력",
+      highlightName: "수출 유망 파트너",
+      description:
+        "회주철(GC), 구상흑연주철(GCD), 특수 합금강 주물부터 완제품 가공까지 글로벌 고객사가 신뢰하는 파트너입니다.",
+      mediaType: "video",
+      mediaUrl: "https://assets.mixkit.co/videos/preview/mixkit-automated-industrial-machinery-in-action-42632-large.mp4",
+      primaryBtnText: "회사소개 바로가기",
+      primaryBtnHref: "/about",
+      secondaryBtnText: "온라인 견적문의",
+      secondaryBtnHref: "/support",
+      active: true,
+    },
+  ],
+  coreSectionTitle: "핵심 사업 분야",
+  coreSectionSubtitle:
+    "원소재 주조부터 정밀 가공, 품질 검사까지 원스톱 생산 체계를 갖추고 있습니다.",
+  cores: [
+    {
+      id: "core_1",
+      title: "특수·일반 주물 생산",
+      desc: "회주철(GC), 구상흑연주철(GCD) 및 합금강 주물 등 고객사 요구 사양에 맞춘 고품질 주물 소재 제작",
+      imageUrl: makeSvgDataUrl("특수·일반 주물 생산", "GC / GCD / 특수 합금강 주조", "slate"),
+    },
+    {
+      id: "core_2",
+      title: "CNC 정밀 기계가공",
+      desc: "머시닝센터(MCT), CNC 선반, 대형 보링기 등을 활용한 고난도·초정밀 부품 가공",
+      imageUrl: makeSvgDataUrl("CNC 정밀 기계가공", "MCT / CNC 선반 / 대형 문형 보링", "blue"),
+    },
+    {
+      id: "core_3",
+      title: "철저한 품질 보증",
+      desc: "3차원 측정기 및 비파괴 검사 설비를 통한 엄격한 치수 관리 및 납기 준수",
+      imageUrl: makeSvgDataUrl("철저한 품질 보증", "3차원 측정기(CMM) 및 성분·경도 분석", "indigo"),
+    },
+  ],
+  showFacilitiesBanner: true,
+  facilitiesBannerTitle: "보유 설비 현황",
+  facilitiesBannerDesc: "생산 설비 및 정밀 측정 장비 리스트를 확인하실 수 있습니다.",
+  showSupportBanner: true,
+  supportBannerTitle: "고객지원 및 견적문의",
+  supportBannerDesc: "도면 검토 및 가공 견적 문의를 남겨주시면 신속히 답변드리겠습니다.",
+};
+
+export function getHomeConfig(slug = "noksan"): HomeConfig {
+  if (typeof window === "undefined") return defaultHomeConfig;
+  try {
+    const raw = localStorage.getItem(`${HOME_CONFIG_KEY_PREFIX}${slug}`);
+    if (!raw) return defaultHomeConfig;
+    const parsed = JSON.parse(raw);
+    return {
+      ...defaultHomeConfig,
+      ...parsed,
+      slides: Array.isArray(parsed.slides) && parsed.slides.length > 0 ? parsed.slides : defaultHomeConfig.slides,
+      cores: Array.isArray(parsed.cores) && parsed.cores.length > 0 ? parsed.cores : defaultHomeConfig.cores,
+    };
+  } catch {
+    return defaultHomeConfig;
+  }
+}
+
+export function saveHomeConfig(slug: string, config: HomeConfig): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(`${HOME_CONFIG_KEY_PREFIX}${slug}`, JSON.stringify(config));
+  window.dispatchEvent(new Event("cms-updated"));
+}
+
+export function resetHomeConfig(slug = "noksan"): HomeConfig {
+  if (typeof window !== "undefined") {
+    localStorage.removeItem(`${HOME_CONFIG_KEY_PREFIX}${slug}`);
+    window.dispatchEvent(new Event("cms-updated"));
+  }
+  return defaultHomeConfig;
+}
+
+export async function uploadMediaFileToUrl(slug: string, file: File): Promise<string> {
+  if (isSupabaseConfigured()) {
+    try {
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${slug}_banner_${Date.now()}.${fileExt}`;
+      const { error: uploadError } = await supabase.storage
+        .from("product-images")
+        .upload(fileName, file);
+
+      if (!uploadError) {
+        const { data: publicURLData } = supabase.storage
+          .from("product-images")
+          .getPublicUrl(fileName);
+        return publicURLData.publicUrl;
+      }
+    } catch {
+      // fallback to DataURL below
+    }
+  }
+  return fileToDataUrl(file);
 }
 
 export function getSupportInquiries(slug = "noksan"): SupportInquiry[] {
