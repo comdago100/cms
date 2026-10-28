@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { siteConfig } from "@/config/site";
 import { useLanguage } from "@/context/LanguageContext";
+import { getSiteSettings, defaultSiteSettings, SiteSettings } from "@/lib/cms";
 
 type AboutTab = "greeting" | "overview" | "vision" | "history" | "location";
 
@@ -78,13 +78,15 @@ const aboutTabsContent = {
       },
     ],
     location: {
-      mapBadge: "부산 녹산국가산업단지 본사 · 제1·2공장",
-      mapOpenBtn: "카카오맵 / 네이버지도에서 위치 검색 ↗",
+      searchTitle: "구글 지도 위치 검색 (주소 입력 시 즉시 지도 이동)",
+      searchPlaceholder: "주소를 입력하면 해당 위치가 구글 지도에 바로 표시됩니다.",
+      resetBtn: "본사 기본 주소로 복원",
+      openGoogleMapsBtn: "구글 지도 크게 보기 ↗",
       directionsTitle: "교통편 및 방문 안내",
       directions: [
         {
           title: "승용차·화물차 이용 시",
-          desc: "남해고속도로가락IC 또는 부산신항 배후도로 → 녹산국가산업단지 진입 → 녹산산단382로 14번길 방면 (대형 화물차 진·출입 가능)",
+          desc: "남해고속도로 가락IC 또는 부산신항 배후도로 → 녹산국가산업단지 진입 → 녹산산단382로 14번길 방면 (대형 화물차 진·출입 가능)",
         },
         {
           title: "대중교통 이용 시",
@@ -167,8 +169,10 @@ const aboutTabsContent = {
       },
     ],
     location: {
-      mapBadge: "Busan Noksan National Industrial Complex HQ & Plant 1·2",
-      mapOpenBtn: "Open in Google Maps ↗",
+      searchTitle: "Google Maps Live Address Search",
+      searchPlaceholder: "Enter any address to view its exact location on Google Maps",
+      resetBtn: "Reset to HQ Address",
+      openGoogleMapsBtn: "Open in Google Maps ↗",
       directionsTitle: "Directions & Access",
       directions: [
         {
@@ -255,8 +259,10 @@ const aboutTabsContent = {
       },
     ],
     location: {
-      mapBadge: "韩国釜山菉山国家产业园区 总部及第1·2工厂",
-      mapOpenBtn: "在地图中查看位置 ↗",
+      searchTitle: "Google地图地址搜索",
+      searchPlaceholder: "输入地址即可在Google地图上准确定位",
+      resetBtn: "恢复总部地址",
+      openGoogleMapsBtn: "在Google地图中打开 ↗",
       directionsTitle: "交通指南",
       directions: [
         {
@@ -344,8 +350,10 @@ const aboutTabsContent = {
       },
     ],
     location: {
-      mapBadge: "釜山・菉山国家産業団地 本社・第1・2工場",
-      mapOpenBtn: "Googleマップで位置を確認 ↗",
+      searchTitle: "Googleマップ住所検索",
+      searchPlaceholder: "住所を入力するとその位置がGoogleマップに表示されます",
+      resetBtn: "本社住所に戻す",
+      openGoogleMapsBtn: "Googleマップで大きく見る ↗",
       directionsTitle: "交通アクセス・ご来社案内",
       directions: [
         {
@@ -368,26 +376,70 @@ const aboutTabsContent = {
 export default function AboutPage() {
   const { locale, t } = useLanguage();
   const [activeTab, setActiveTab] = useState<AboutTab>("greeting");
+  const [settings, setSettings] = useState<SiteSettings>(defaultSiteSettings);
+  const [mapQuery, setMapQuery] = useState<string>(defaultSiteSettings.address);
+
+  useEffect(() => {
+    const load = () => {
+      const s = getSiteSettings("noksan");
+      setSettings(s);
+      setMapQuery(s.address);
+    };
+    load();
+    window.addEventListener("cms-updated", load);
+    return () => window.removeEventListener("cms-updated", load);
+  }, []);
+
   const c = aboutTabsContent[locale];
+
+  const companyName = locale === "KR" ? settings.name : t.company.name;
+  const ceoName = locale === "KR" ? settings.ceo : t.company.ceo;
+  const established = locale === "KR" ? settings.established : t.company.established;
+  const businessDesc = locale === "KR" ? settings.description : t.company.description;
+  const addressText = locale === "KR" ? settings.address : t.company.address;
+  const greetingLead = locale === "KR" ? settings.ceoGreetingLead : c.greetingLead;
+  const greetingParagraphs =
+    locale === "KR"
+      ? settings.ceoGreetingBody.split(/\n+/).filter(Boolean)
+      : t.about.ceoParagraphs;
+  const visionSlogan = locale === "KR" ? settings.visionSlogan : c.vision.slogan;
+  const visionSubSlogan = locale === "KR" ? settings.visionSubSlogan : c.vision.subSlogan;
+
+  const adminBtnLabel =
+    locale === "KR"
+      ? "회사소개·주소 정보 수정 (관리자)"
+      : locale === "EN"
+      ? "Edit Company Info (Admin)"
+      : locale === "CN"
+      ? "修改公司信息 (管理员)"
+      : "会社情報編集 (管理者)";
 
   return (
     <div className="bg-slate-50">
       {/* 서브 비주얼 배너 */}
       <section className="bg-slate-900 py-14 text-white">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <p className="text-xs font-semibold uppercase tracking-widest text-blue-400">
-            COMPANY INFORMATION
-          </p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
-            {t.about.title}
-          </h1>
-          <p className="mt-2 max-w-2xl text-sm text-slate-300">
-            {t.about.subtitle}
-          </p>
+        <div className="mx-auto flex max-w-6xl flex-col justify-between gap-4 px-4 sm:flex-row sm:items-end sm:px-6">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-widest text-blue-400">
+              COMPANY INFORMATION
+            </p>
+            <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
+              {t.about.title}
+            </h1>
+            <p className="mt-2 max-w-2xl text-sm text-slate-300">
+              {t.about.subtitle}
+            </p>
+          </div>
+          <Link
+            href="/noksan/admin?tab=settings"
+            className="inline-flex items-center gap-1.5 self-start rounded-lg border border-slate-700 bg-slate-800/90 px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-blue-600 hover:border-blue-500 hover:text-white transition-colors"
+          >
+            ⚙️ {adminBtnLabel}
+          </Link>
         </div>
       </section>
 
-      {/* 서브 탭 네비게이션 (일자 나열 방지, 클릭 시 섹션 전환) */}
+      {/* 서브 탭 네비게이션 */}
       <div className="sticky top-16 z-40 border-b border-slate-200 bg-white shadow-2xs">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
           <div className="flex overflow-x-auto no-scrollbar">
@@ -426,13 +478,13 @@ export default function AboutPage() {
                   CEO MESSAGE
                 </span>
                 <p className="mt-6 text-xl font-bold leading-snug sm:text-2xl">
-                  {c.greetingLead}
+                  {greetingLead}
                 </p>
               </div>
               <div className="mt-10 border-t border-white/15 pt-6">
-                <p className="text-xs text-slate-400">{siteConfig.englishName}</p>
+                <p className="text-xs text-slate-400">{settings.englishName}</p>
                 <p className="mt-1 text-lg font-bold">
-                  {t.company.name} · {c.ceoRole} {t.company.ceo}
+                  {companyName} · {c.ceoRole} {ceoName}
                 </p>
               </div>
             </div>
@@ -442,15 +494,15 @@ export default function AboutPage() {
                 {t.about.ceoGreetingTitle}
               </h2>
               <div className="mt-6 space-y-4 text-sm leading-7 text-slate-600 sm:text-base sm:leading-8">
-                {t.about.ceoParagraphs.map((paragraph, idx) => (
+                {greetingParagraphs.map((paragraph, idx) => (
                   <p key={idx}>{paragraph}</p>
                 ))}
               </div>
               <div className="mt-8 flex items-center justify-end border-t border-slate-100 pt-6">
                 <div className="text-right">
-                  <p className="text-xs text-slate-500">{t.company.name}</p>
+                  <p className="text-xs text-slate-500">{companyName}</p>
                   <p className="text-base font-bold text-slate-900">
-                    {t.about.ceoSign}
+                    {c.ceoRole} {ceoName}
                   </p>
                 </div>
               </div>
@@ -461,7 +513,6 @@ export default function AboutPage() {
         {/* 2. 회사개요 */}
         {activeTab === "overview" && (
           <div className="space-y-8">
-            {/* 핵심 수치 요약 카드 */}
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {c.stats.map((stat) => (
                 <div
@@ -475,7 +526,6 @@ export default function AboutPage() {
               ))}
             </div>
 
-            {/* 기업 개요 상세 테이블 카드 */}
             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs">
               <div className="border-b border-slate-200 bg-slate-50 px-6 py-4">
                 <h2 className="text-lg font-bold text-slate-900">{t.about.overviewTitle}</h2>
@@ -484,30 +534,30 @@ export default function AboutPage() {
                 <div className="flex flex-col border-b border-slate-200 p-6 md:border-r">
                   <dt className="text-xs font-semibold text-slate-500">{t.about.labels.companyName}</dt>
                   <dd className="mt-1.5 font-bold text-slate-900">
-                    {t.company.name} ({siteConfig.englishName})
+                    {companyName} ({settings.englishName})
                   </dd>
                 </div>
                 <div className="flex flex-col border-b border-slate-200 p-6">
                   <dt className="text-xs font-semibold text-slate-500">{t.about.labels.ceo}</dt>
-                  <dd className="mt-1.5 font-bold text-slate-900">{t.company.ceo}</dd>
+                  <dd className="mt-1.5 font-bold text-slate-900">{ceoName}</dd>
                 </div>
                 <div className="flex flex-col border-b border-slate-200 p-6 md:border-r">
                   <dt className="text-xs font-semibold text-slate-500">{t.about.labels.established}</dt>
-                  <dd className="mt-1.5 font-semibold text-slate-900">{t.company.established}</dd>
+                  <dd className="mt-1.5 font-semibold text-slate-900">{established}</dd>
                 </div>
                 <div className="flex flex-col border-b border-slate-200 p-6">
                   <dt className="text-xs font-semibold text-slate-500">{t.about.labels.contact}</dt>
                   <dd className="mt-1.5 font-semibold text-slate-900">
-                    TEL: {siteConfig.phone} / FAX: {siteConfig.fax}
+                    TEL: {settings.phone} / FAX: {settings.fax}
                   </dd>
                 </div>
                 <div className="flex flex-col border-b border-slate-200 p-6 md:col-span-2">
                   <dt className="text-xs font-semibold text-slate-500">{t.about.labels.business}</dt>
-                  <dd className="mt-1.5 text-slate-900">{t.company.description}</dd>
+                  <dd className="mt-1.5 text-slate-900">{businessDesc}</dd>
                 </div>
                 <div className="flex flex-col p-6 md:col-span-2">
                   <dt className="text-xs font-semibold text-slate-500">{t.about.labels.address}</dt>
-                  <dd className="mt-1.5 text-slate-900">{t.company.address}</dd>
+                  <dd className="mt-1.5 text-slate-900">{addressText}</dd>
                 </div>
               </dl>
             </div>
@@ -522,10 +572,10 @@ export default function AboutPage() {
                 {c.vision.sloganLabel}
               </span>
               <h2 className="mt-4 text-2xl font-bold sm:text-3xl">
-                “{c.vision.slogan}”
+                “{visionSlogan}”
               </h2>
               <p className="mx-auto mt-3 max-w-2xl text-sm text-slate-300 sm:text-base">
-                {c.vision.subSlogan}
+                {visionSubSlogan}
               </p>
             </div>
 
@@ -581,65 +631,89 @@ export default function AboutPage() {
           </div>
         )}
 
-        {/* 5. 오시는 길 */}
+        {/* 5. 오시는 길 (실시간 구글지도 임베드 + 주소 검색) */}
         {activeTab === "location" && (
           <div className="grid gap-8 lg:grid-cols-12">
-            {/* 약도 / 지도 뷰 영역 */}
+            {/* 구글 지도 임베드 및 주소 입력 바 */}
             <div className="lg:col-span-7 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs flex flex-col justify-between">
-              <div className="relative flex min-h-80 flex-col items-center justify-center bg-slate-900 p-8 text-center text-white">
-                <div
-                  className="absolute inset-0 opacity-15"
-                  style={{
-                    backgroundImage:
-                      "radial-gradient(#60a5fa 1px, transparent 1px)",
-                    backgroundSize: "20px 20px",
-                  }}
-                />
-                <div className="relative z-10 max-w-md">
-                  <span className="inline-block rounded-full bg-blue-600 px-3 py-1 text-xs font-semibold">
-                    {c.location.mapBadge}
-                  </span>
-                  <h3 className="mt-4 text-xl font-bold">{t.company.name}</h3>
-                  <p className="mt-2 text-sm text-slate-300">{t.company.address}</p>
-                  <p className="mt-1 text-xs text-slate-400">
-                    TEL: {siteConfig.phone} | FAX: {siteConfig.fax}
-                  </p>
+              <div className="border-b border-slate-200 bg-slate-50 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                  <label className="text-xs font-bold text-slate-700">
+                    📍 {c.location.searchTitle}
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setMapQuery(settings.address)}
+                    className="text-xs font-semibold text-blue-600 hover:underline cursor-pointer"
+                  >
+                    {c.location.resetBtn}
+                  </button>
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={mapQuery}
+                    onChange={(e) => setMapQuery(e.target.value)}
+                    placeholder={c.location.searchPlaceholder}
+                    className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm text-slate-900 focus:border-blue-600 focus:outline-none"
+                  />
                   <a
-                    href={`https://map.kakao.com/?q=${encodeURIComponent(siteConfig.address)}`}
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                      mapQuery || settings.address
+                    )}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="mt-6 inline-block rounded-lg bg-white px-5 py-2.5 text-xs font-bold text-slate-900 hover:bg-blue-50 transition-colors"
+                    className="shrink-0 inline-flex items-center rounded-lg bg-blue-600 px-4 py-2 text-xs font-bold text-white hover:bg-blue-500 transition-colors"
                   >
-                    {c.location.mapOpenBtn}
+                    {c.location.openGoogleMapsBtn}
                   </a>
                 </div>
               </div>
+
+              {/* 실제 구글 지도 iframe */}
+              <div className="relative h-96 w-full bg-slate-100">
+                <iframe
+                  title="Google Maps Location"
+                  src={`https://maps.google.com/maps?q=${encodeURIComponent(
+                    mapQuery || settings.address
+                  )}&t=&z=16&ie=UTF8&iwloc=&output=embed`}
+                  className="h-full w-full border-0"
+                  loading="lazy"
+                  referrerPolicy="no-referrer-when-downgrade"
+                />
+              </div>
+
               <div className="grid grid-cols-2 divide-x divide-slate-200 border-t border-slate-200 bg-slate-50 text-xs">
                 <div className="p-4">
                   <span className="font-semibold text-slate-500">{t.footer.phone}</span>
-                  <p className="mt-1 text-sm font-bold text-slate-900">{siteConfig.phone}</p>
+                  <p className="mt-1 text-sm font-bold text-slate-900">{settings.phone}</p>
                 </div>
                 <div className="p-4">
                   <span className="font-semibold text-slate-500">{t.support.labels.hours}</span>
-                  <p className="mt-1 text-sm font-bold text-slate-900">{t.company.operatingHours}</p>
+                  <p className="mt-1 text-sm font-bold text-slate-900">{settings.operatingHours}</p>
                 </div>
               </div>
             </div>
 
             {/* 교통편 안내 */}
-            <div className="lg:col-span-5 rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-xs">
-              <h2 className="text-lg font-bold text-slate-900">
-                {c.location.directionsTitle}
-              </h2>
-              <div className="mt-6 space-y-5">
-                {c.location.directions.map((dir, i) => (
-                  <div key={i} className="border-b border-slate-100 pb-4 last:border-b-0 last:pb-0">
-                    <h3 className="text-sm font-bold text-blue-700">{dir.title}</h3>
-                    <p className="mt-1.5 text-xs leading-relaxed text-slate-600">
-                      {dir.desc}
-                    </p>
-                  </div>
-                ))}
+            <div className="lg:col-span-5 rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-xs flex flex-col justify-between">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">
+                  {c.location.directionsTitle}
+                </h2>
+                <p className="mt-1 text-xs text-slate-500">
+                  {addressText}
+                </p>
+                <div className="mt-6 space-y-5">
+                  {c.location.directions.map((dir, i) => (
+                    <div key={i} className="border-b border-slate-100 pb-4 last:border-b-0 last:pb-0">
+                      <h3 className="text-sm font-bold text-blue-700">{dir.title}</h3>
+                      <p className="mt-1.5 text-xs leading-relaxed text-slate-600">
+                        {dir.desc}
+                      </p>
+                    </div>
+                  ))}
+                </div>
               </div>
               <div className="mt-6 pt-4 border-t border-slate-100">
                 <Link

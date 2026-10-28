@@ -3,11 +3,15 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useLanguage } from "@/context/LanguageContext";
-import { fetchCmsItems, CmsItem } from "@/lib/cms";
+import { fetchCmsItems, CmsItem, makeSvgDataUrl } from "@/lib/cms";
+import { ImageLightbox } from "@/components/ImageLightbox";
 
 export default function ProductsPage() {
   const { locale, t } = useLanguage();
   const [cmsProducts, setCmsProducts] = useState<CmsItem[]>([]);
+  const [zoomImage, setZoomImage] = useState<{ src: string; alt: string; caption?: string } | null>(
+    null
+  );
 
   useEffect(() => {
     const load = () => {
@@ -18,24 +22,37 @@ export default function ProductsPage() {
     return () => window.removeEventListener("cms-updated", load);
   }, []);
 
-  const combinedProducts = [
-    ...cmsProducts.map((c) => ({
+  const displayProducts = cmsProducts.map((c) => {
+    const seedMatch = c.id.startsWith("seed_prod_")
+      ? t.products.items[Number(c.id.replace("seed_prod_", ""))]
+      : null;
+
+    const useTranslated = locale !== "KR" && seedMatch;
+    const name = useTranslated ? seedMatch.name : c.title;
+    const category = useTranslated ? seedMatch.category : c.subCategory || "주문제작(OEM)";
+    const material = useTranslated ? seedMatch.material : c.specOrMaterial || "고객사 지정 재질";
+    const desc = useTranslated ? seedMatch.desc : c.description || "";
+    const imgSrc =
+      c.imageUrl || makeSvgDataUrl(name, `${category} | ${material}`, "slate");
+
+    return {
       id: c.id,
-      category: c.subCategory || "주문제작(OEM)",
-      name: c.title,
-      material: c.specOrMaterial || "고객사 지정 재질",
-      desc: c.description || "",
-      imageUrl: c.imageUrl || "",
-    })),
-    ...t.products.items.map((item, idx) => ({
-      id: `default_${idx}`,
-      category: item.category,
-      name: item.name,
-      material: item.material,
-      desc: item.desc,
-      imageUrl: "",
-    })),
-  ];
+      category,
+      name,
+      material,
+      desc,
+      imageUrl: imgSrc,
+    };
+  });
+
+  const zoomHint =
+    locale === "KR"
+      ? "🔍 클릭하여 크게 보기"
+      : locale === "EN"
+      ? "🔍 Click to Enlarge"
+      : locale === "CN"
+      ? "🔍 点击放大"
+      : "🔍 クリックで拡大";
 
   const adminBtnLabel =
     locale === "KR"
@@ -72,38 +89,34 @@ export default function ProductsPage() {
 
       <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {combinedProducts.map((product) => (
+          {displayProducts.map((product) => (
             <div
               key={product.id}
               className="group flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs transition-shadow hover:shadow-md"
             >
               <div>
-                <div className="relative h-48 w-full overflow-hidden bg-slate-100">
-                  {product.imageUrl ? (
-                    <img
-                      src={product.imageUrl}
-                      alt={product.name}
-                      className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                    />
-                  ) : (
-                    <div className="flex h-full w-full flex-col items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 text-xs font-medium text-slate-500">
-                      <svg
-                        className="mb-2 h-8 w-8 text-slate-400"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={1.5}
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M21 7.5l-9-5.25L3 7.5m18 0l-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9"
-                        />
-                      </svg>
-                      {t.products.imagePlaceholder}
-                    </div>
-                  )}
-                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setZoomImage({
+                      src: product.imageUrl,
+                      alt: product.name,
+                      caption: `${product.category} | ${t.products.materialLabel}: ${product.material}`,
+                    })
+                  }
+                  className="relative block h-48 w-full overflow-hidden bg-slate-900 text-left cursor-zoom-in"
+                >
+                  <img
+                    src={product.imageUrl}
+                    alt={product.name}
+                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-all group-hover:bg-black/40 group-hover:opacity-100">
+                    <span className="rounded-full bg-white/95 px-3.5 py-1.5 text-xs font-bold text-slate-900 shadow-md">
+                      {zoomHint}
+                    </span>
+                  </div>
+                </button>
                 <div className="p-6">
                   <span className="inline-block rounded bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700">
                     {product.category}
@@ -122,6 +135,15 @@ export default function ProductsPage() {
           ))}
         </div>
       </div>
+
+      {zoomImage && (
+        <ImageLightbox
+          src={zoomImage.src}
+          alt={zoomImage.alt}
+          caption={zoomImage.caption}
+          onClose={() => setZoomImage(null)}
+        />
+      )}
     </div>
   );
 }

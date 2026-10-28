@@ -3,11 +3,15 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useLanguage } from "@/context/LanguageContext";
-import { fetchCmsItems, CmsItem } from "@/lib/cms";
+import { fetchCmsItems, CmsItem, makeSvgDataUrl } from "@/lib/cms";
+import { ImageLightbox } from "@/components/ImageLightbox";
 
 export default function TechnologyPage() {
   const { locale, t } = useLanguage();
   const [cmsTech, setCmsTech] = useState<CmsItem[]>([]);
+  const [zoomImage, setZoomImage] = useState<{ src: string; alt: string; caption?: string } | null>(
+    null
+  );
 
   useEffect(() => {
     const load = () => {
@@ -18,30 +22,43 @@ export default function TechnologyPage() {
     return () => window.removeEventListener("cms-updated", load);
   }, []);
 
-  const combinedItems = [
-    ...cmsTech.map((c) => ({
+  const displayItems = cmsTech.map((c) => {
+    const seedMatch = c.id.startsWith("seed_tech_")
+      ? t.technology.items[Number(c.id.replace("seed_tech_", ""))]
+      : null;
+
+    const useTranslated = locale !== "KR" && seedMatch;
+    const title = useTranslated ? seedMatch.title : c.title;
+    const category = useTranslated ? seedMatch.category : c.subCategory || "품질·환경 경영인증";
+    const issuer = useTranslated ? seedMatch.issuer : c.specOrMaterial || "-";
+    const date = useTranslated ? seedMatch.date : c.qtyOrDate || "-";
+    const desc = useTranslated ? seedMatch.desc : c.description || "";
+    const imgSrc =
+      c.imageUrl || makeSvgDataUrl(title, `${issuer} (${date})`, "indigo");
+
+    return {
       id: c.id,
-      category: c.subCategory || "품질·환경 경영인증",
-      title: c.title,
-      issuer: c.specOrMaterial || "-",
-      date: c.qtyOrDate || "-",
-      desc: c.description || "",
-      imageUrl: c.imageUrl || "",
-    })),
-    ...t.technology.items.map((item, idx) => ({
-      id: `default_${idx}`,
-      category: item.category,
-      title: item.title,
-      issuer: item.issuer,
-      date: item.date,
-      desc: item.desc,
-      imageUrl: "",
-    })),
-  ];
+      category,
+      title,
+      issuer,
+      date,
+      desc,
+      imageUrl: imgSrc,
+    };
+  });
+
+  const zoomHint =
+    locale === "KR"
+      ? "🔍 인증서·특허 확대보기"
+      : locale === "EN"
+      ? "🔍 Click to Enlarge"
+      : locale === "CN"
+      ? "🔍 点击放大证书"
+      : "🔍 クリックで拡大";
 
   const adminBtnLabel =
     locale === "KR"
-      ? "인증서·특허 관리 (관리자)"
+      ? "인증서·특허 등록/수정 (관리자)"
       : locale === "EN"
       ? "Manage Certificates (Admin)"
       : locale === "CN"
@@ -74,38 +91,34 @@ export default function TechnologyPage() {
 
       <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
         <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {combinedItems.map((item) => (
+          {displayItems.map((item) => (
             <div
               key={item.id}
-              className="flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs transition-shadow hover:shadow-md"
+              className="group flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs transition-shadow hover:shadow-md"
             >
               <div>
-                <div className="relative h-52 w-full overflow-hidden border-b border-slate-100 bg-slate-50">
-                  {item.imageUrl ? (
-                    <img
-                      src={item.imageUrl}
-                      alt={item.title}
-                      className="h-full w-full object-contain p-3"
-                    />
-                  ) : (
-                    <div className="flex h-full w-full flex-col items-center justify-center p-6 text-center text-xs font-medium text-slate-400">
-                      <svg
-                        className="mb-2 h-9 w-9 text-blue-500/60"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                        strokeWidth={1.5}
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z"
-                        />
-                      </svg>
-                      {t.technology.imagePlaceholder}
-                    </div>
-                  )}
-                </div>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setZoomImage({
+                      src: item.imageUrl,
+                      alt: item.title,
+                      caption: `${item.category} | ${t.technology.issuerLabel}: ${item.issuer} (${item.date})`,
+                    })
+                  }
+                  className="relative block h-52 w-full overflow-hidden border-b border-slate-100 bg-slate-900 text-left cursor-zoom-in"
+                >
+                  <img
+                    src={item.imageUrl}
+                    alt={item.title}
+                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                  />
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/0 opacity-0 transition-all group-hover:bg-black/40 group-hover:opacity-100">
+                    <span className="rounded-full bg-white/95 px-3.5 py-1.5 text-xs font-bold text-slate-900 shadow-md">
+                      {zoomHint}
+                    </span>
+                  </div>
+                </button>
                 <div className="p-6">
                   <span className="inline-block rounded bg-blue-50 px-2.5 py-0.5 text-xs font-semibold text-blue-700">
                     {item.category}
@@ -131,6 +144,15 @@ export default function TechnologyPage() {
           ))}
         </div>
       </div>
+
+      {zoomImage && (
+        <ImageLightbox
+          src={zoomImage.src}
+          alt={zoomImage.alt}
+          caption={zoomImage.caption}
+          onClose={() => setZoomImage(null)}
+        />
+      )}
     </div>
   );
 }

@@ -1,12 +1,24 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { siteConfig } from "@/config/site";
 import { localeLabels } from "@/lib/i18n";
 import { useLanguage } from "@/context/LanguageContext";
+import { getSiteSettings, defaultSiteSettings, SiteSettings } from "@/lib/cms";
 
 export function Header() {
   const { locale, setLocale, t } = useLanguage();
+  const [settings, setSettings] = useState<SiteSettings>(defaultSiteSettings);
+
+  useEffect(() => {
+    const load = () => setSettings(getSiteSettings("noksan"));
+    load();
+    window.addEventListener("cms-updated", load);
+    return () => window.removeEventListener("cms-updated", load);
+  }, []);
+
+  const displayName = locale === "KR" ? settings.name : t.company.name;
 
   const navItems = [
     { label: t.nav.home, href: "/" },
@@ -23,10 +35,10 @@ export function Header() {
       <div className="mx-auto flex min-h-16 max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-2 sm:px-6">
         <Link href="/" className="flex flex-col">
           <span className="text-lg font-bold tracking-tight text-slate-900">
-            {t.company.name}
+            {displayName}
           </span>
           <span className="text-[10px] font-medium tracking-wider text-slate-500">
-            {siteConfig.englishName}
+            {settings.englishName}
           </span>
         </Link>
 
@@ -75,7 +87,20 @@ export function Header() {
 }
 
 export function Footer() {
-  const { t } = useLanguage();
+  const { locale, t } = useLanguage();
+  const [settings, setSettings] = useState<SiteSettings>(defaultSiteSettings);
+
+  useEffect(() => {
+    const load = () => setSettings(getSiteSettings("noksan"));
+    load();
+    window.addEventListener("cms-updated", load);
+    return () => window.removeEventListener("cms-updated", load);
+  }, []);
+
+  const displayName = locale === "KR" ? settings.name : t.company.name;
+  const displayDesc = locale === "KR" ? settings.description : t.company.description;
+  const displayCeo = locale === "KR" ? settings.ceo : t.company.ceo;
+  const displayAddr = locale === "KR" ? settings.address : t.company.address;
 
   const navItems = [
     { label: t.nav.home, href: "/" },
@@ -92,8 +117,8 @@ export function Footer() {
       <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
         <div className="flex flex-col justify-between gap-6 md:flex-row md:items-center">
           <div>
-            <p className="text-base font-bold text-white">{t.company.name}</p>
-            <p className="mt-1 text-sm text-slate-400">{t.company.description}</p>
+            <p className="text-base font-bold text-white">{displayName}</p>
+            <p className="mt-1 text-sm text-slate-400">{displayDesc}</p>
           </div>
           <div className="flex flex-wrap gap-4 text-sm">
             {navItems.map((item) => (
@@ -109,20 +134,20 @@ export function Footer() {
         </div>
         <div className="mt-6 border-t border-slate-800 pt-6 text-xs leading-6 text-slate-400">
           <p>
-            {t.footer.ceo}: {t.company.ceo} | {t.footer.bizNum}: {siteConfig.businessNumber} | {t.footer.address}: {t.company.address}
+            {t.footer.ceo}: {displayCeo} | {t.footer.bizNum}: {settings.businessNumber} | {t.footer.address}: {displayAddr}
           </p>
           <p>
-            {t.footer.phone}: {siteConfig.phone} | {t.footer.fax}: {siteConfig.fax} | {t.footer.email}: {siteConfig.email}
+            {t.footer.phone}: {settings.phone} | {t.footer.fax}: {settings.fax} | {t.footer.email}: {settings.email}
           </p>
           <p className="mt-2 flex items-center justify-between text-slate-500">
             <span>
-              Copyright © {siteConfig.copyrightYear} {siteConfig.englishName} All rights reserved.
+              Copyright © {siteConfig.copyrightYear} {settings.englishName} All rights reserved.
             </span>
             <Link
               href="/noksan/admin"
-              className="text-slate-500 hover:text-slate-300 transition-colors"
+              className="rounded bg-slate-800 px-2.5 py-1 text-slate-300 hover:bg-blue-600 hover:text-white transition-colors"
             >
-              ⚙️ Admin (CMS)
+              ⚙️ 통합 관리자 페이지 (CMS)
             </Link>
           </p>
         </div>

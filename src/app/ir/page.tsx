@@ -3,43 +3,73 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useLanguage } from "@/context/LanguageContext";
-import { fetchCmsItems, CmsItem } from "@/lib/cms";
+import {
+  fetchCmsItems,
+  CmsItem,
+  getSiteSettings,
+  defaultSiteSettings,
+  SiteSettings,
+} from "@/lib/cms";
 
 export default function IrPage() {
   const { locale, t } = useLanguage();
   const [cmsIr, setCmsIr] = useState<CmsItem[]>([]);
+  const [settings, setSettings] = useState<SiteSettings>(defaultSiteSettings);
 
   useEffect(() => {
     const load = () => {
       fetchCmsItems("noksan", "ir").then(setCmsIr);
+      setSettings(getSiteSettings("noksan"));
     };
     load();
     window.addEventListener("cms-updated", load);
     return () => window.removeEventListener("cms-updated", load);
   }, []);
 
-  const combinedDisclosures = [
-    ...cmsIr.map((c) => ({
+  const highlights =
+    locale === "KR"
+      ? [
+          {
+            label: t.ir.highlights[0].label,
+            value: settings.irRevenue,
+            note: settings.irRevenueNote,
+          },
+          {
+            label: t.ir.highlights[1].label,
+            value: settings.irMargin,
+            note: settings.irMarginNote,
+          },
+          {
+            label: t.ir.highlights[2].label,
+            value: settings.irCredit,
+            note: settings.irCreditNote,
+          },
+        ]
+      : t.ir.highlights;
+
+  const displayDisclosures = cmsIr.map((c) => {
+    const seedMatch = c.id.startsWith("seed_ir_")
+      ? t.ir.disclosures[Number(c.id.replace("seed_ir_", ""))]
+      : null;
+
+    const useTranslated = locale !== "KR" && seedMatch;
+    return {
       id: c.id,
-      date: c.qtyOrDate || c.createdAt.slice(0, 10),
-      category: c.subCategory || "공시/IR",
-      title: c.title,
-      source: c.specOrMaterial || "IR 자료실",
-    })),
-    ...t.ir.disclosures.map((d, idx) => ({
-      id: `default_${idx}`,
-      ...d,
-    })),
-  ];
+      date: useTranslated ? seedMatch.date : c.qtyOrDate || c.createdAt.slice(0, 10),
+      category: useTranslated ? seedMatch.category : c.subCategory || "공시/IR",
+      title: useTranslated ? seedMatch.title : c.title,
+      source: useTranslated ? seedMatch.source : c.specOrMaterial || "IR 자료실",
+    };
+  });
 
   const adminBtnLabel =
     locale === "KR"
-      ? "공시·IR 게시글 관리 (관리자)"
+      ? "재무지표·공시 수정/등록 (관리자)"
       : locale === "EN"
-      ? "Manage IR Posts (Admin)"
+      ? "Manage IR & Financials (Admin)"
       : locale === "CN"
-      ? "管理公示与IR (管理员)"
-      : "公示・IR管理 (管理者)";
+      ? "管理财务与公示 (管理员)"
+      : "財務・公示管理 (管理者)";
 
   return (
     <div className="bg-slate-50">
@@ -68,9 +98,17 @@ export default function IrPage() {
       <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
         {/* 주요 재무 하이라이트 */}
         <section>
-          <h2 className="text-xl font-bold text-slate-900">{t.ir.highlightsTitle}</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-xl font-bold text-slate-900">{t.ir.highlightsTitle}</h2>
+            <Link
+              href="/noksan/admin?tab=settings"
+              className="text-xs font-semibold text-blue-600 hover:underline"
+            >
+              수치 수정 →
+            </Link>
+          </div>
           <div className="mt-4 grid gap-6 sm:grid-cols-3">
-            {t.ir.highlights.map((item) => (
+            {highlights.map((item) => (
               <div
                 key={item.label}
                 className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs"
@@ -108,7 +146,7 @@ export default function IrPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {combinedDisclosures.map((item) => (
+                {displayDisclosures.map((item) => (
                   <tr key={item.id} className="hover:bg-slate-50">
                     <td className="px-6 py-4">
                       <span className="inline-block rounded bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
