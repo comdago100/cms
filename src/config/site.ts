@@ -16,6 +16,8 @@ export const siteConfig = {
     { label: "회사소개", href: "/about" },
     { label: "설비현황", href: "/facilities" },
     { label: "제품소개", href: "/products" },
+    { label: "기술정보", href: "/technology" },
+    { label: "투자정보", href: "/ir" },
     { label: "고객지원", href: "/support" },
   ],
 };

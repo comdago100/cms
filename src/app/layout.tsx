@@ -31,12 +31,12 @@ export default function RootLayout({
               </span>
             </Link>
 
-            <nav className="flex items-center gap-4 sm:gap-8 text-sm font-medium text-slate-700">
+            <nav className="flex flex-wrap items-center gap-3 sm:gap-6 text-sm font-medium text-slate-700">
               {siteConfig.navItems.map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
-                  className="transition-colors hover:text-blue-700"
+                  className="whitespace-nowrap transition-colors hover:text-blue-700"
                 >
                   {item.label}
                 </Link>
