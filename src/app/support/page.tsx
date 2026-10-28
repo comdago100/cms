@@ -54,36 +54,19 @@ export default function SupportPage() {
   const displayAddress = locale === "KR" ? settings.address : t.company.address;
   const displayHours = locale === "KR" ? settings.operatingHours : t.company.operatingHours;
 
-  const adminBtnLabel =
-    locale === "KR"
-      ? "연락처 수정 · 접수된 문의 확인 (관리자)"
-      : locale === "EN"
-      ? "Manage Contacts & Inquiries (Admin)"
-      : locale === "CN"
-      ? "管理联系方式与客户咨询 (管理员)"
-      : "連絡先・お問い合わせ管理 (管理者)";
-
   return (
     <div className="bg-slate-50">
       <section className="bg-slate-900 py-14 text-white">
-        <div className="mx-auto flex max-w-6xl flex-col justify-between gap-4 px-4 sm:flex-row sm:items-end sm:px-6">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-widest text-blue-400">
-              CUSTOMER SUPPORT
-            </p>
-            <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
-              {t.support.title}
-            </h1>
-            <p className="mt-2 max-w-2xl text-sm text-slate-300">
-              {t.support.subtitle}
-            </p>
-          </div>
-          <Link
-            href="/noksan/admin?tab=inquiries"
-            className="inline-flex items-center gap-1.5 self-start rounded-lg border border-slate-700 bg-slate-800/90 px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-blue-600 hover:border-blue-500 hover:text-white transition-colors"
-          >
-            ⚙️ {adminBtnLabel}
-          </Link>
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <p className="text-xs font-semibold uppercase tracking-widest text-blue-400">
+            CUSTOMER SUPPORT
+          </p>
+          <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
+            {t.support.title}
+          </h1>
+          <p className="mt-2 max-w-2xl text-sm text-slate-300">
+            {t.support.subtitle}
+          </p>
         </div>
       </section>
 
@@ -91,17 +74,9 @@ export default function SupportPage() {
         <div className="grid gap-8 lg:grid-cols-3">
           {/* 연락처 안내 */}
           <div className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-xs">
-            <div className="flex items-start justify-between">
-              <div>
-                <h2 className="text-lg font-bold text-slate-900">{t.support.contactTitle}</h2>
-                <p className="mt-1 text-xs text-slate-500">{t.support.contactSub}</p>
-              </div>
-              <Link
-                href="/noksan/admin?tab=settings"
-                className="text-xs font-semibold text-blue-600 hover:underline shrink-0"
-              >
-                연락처 수정
-              </Link>
+            <div>
+              <h2 className="text-lg font-bold text-slate-900">{t.support.contactTitle}</h2>
+              <p className="mt-1 text-xs text-slate-500">{t.support.contactSub}</p>
             </div>
             <dl className="space-y-4 text-sm">
               <div>

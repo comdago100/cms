@@ -78,15 +78,6 @@ export default function HomePage() {
     };
   });
 
-  const adminHomeBtnLabel =
-    locale === "KR"
-      ? "홈 배너(영상/이미지) · 섹션 관리 (관리자)"
-      : locale === "EN"
-      ? "Manage Home Banners & Sections (Admin)"
-      : locale === "CN"
-      ? "管理首页轮播图/视频与板块 (管理员)"
-      : "ホームバナー(動画/画像)・セクション管理";
-
   return (
     <div>
       {/* 1. 멀티 슬라이드 히어로 배너 섹션 (영상 / 이미지 / 기본 배경 지원) */}
@@ -119,16 +110,6 @@ export default function HomePage() {
           )}
           {/* 가독성을 위한 어두운 오버레이 그라데이션 */}
           <div className="absolute inset-0 bg-gradient-to-r from-slate-950/90 via-slate-950/75 to-slate-900/50" />
-        </div>
-
-        {/* 우측 상단 관리자 바로가기 플로팅 버튼 */}
-        <div className="absolute right-4 top-4 z-20 sm:right-6 sm:top-6">
-          <Link
-            href="/noksan/admin?tab=home"
-            className="inline-flex items-center gap-1.5 rounded-lg border border-white/20 bg-black/50 px-3.5 py-2 text-xs font-semibold text-white backdrop-blur-xs hover:bg-blue-600 hover:border-blue-500 transition-colors"
-          >
-            🎬 {adminHomeBtnLabel}
-          </Link>
         </div>
 
         {/* 배너 텍스트 & CTA 컨텐츠 */}
@@ -225,22 +206,14 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* 2. 핵심 사업 분야 섹션 (이미지 클릭 확대 + 관리자에서 제목/설명/사진 수정 가능) */}
+      {/* 2. 핵심 사업 분야 섹션 */}
       <section className="py-16 sm:py-20">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <div className="flex flex-col items-center justify-between gap-2 text-center sm:flex-row sm:text-left">
-            <div>
-              <h2 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-                {coreTitle}
-              </h2>
-              <p className="mt-2 text-sm text-slate-600">{coreSubtitle}</p>
-            </div>
-            <Link
-              href="/noksan/admin?tab=home"
-              className="text-xs font-semibold text-blue-600 hover:underline shrink-0"
-            >
-              ⚙️ 핵심 역량 카드 수정 →
-            </Link>
+          <div className="text-center">
+            <h2 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+              {coreTitle}
+            </h2>
+            <p className="mt-2 text-sm text-slate-600">{coreSubtitle}</p>
           </div>
 
           <div className="mt-10 grid gap-6 sm:grid-cols-3">

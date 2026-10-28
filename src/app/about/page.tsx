@@ -405,37 +405,20 @@ export default function AboutPage() {
   const visionSlogan = locale === "KR" ? settings.visionSlogan : c.vision.slogan;
   const visionSubSlogan = locale === "KR" ? settings.visionSubSlogan : c.vision.subSlogan;
 
-  const adminBtnLabel =
-    locale === "KR"
-      ? "회사소개·주소 정보 수정 (관리자)"
-      : locale === "EN"
-      ? "Edit Company Info (Admin)"
-      : locale === "CN"
-      ? "修改公司信息 (管理员)"
-      : "会社情報編集 (管理者)";
-
   return (
     <div className="bg-slate-50">
       {/* 서브 비주얼 배너 */}
       <section className="bg-slate-900 py-14 text-white">
-        <div className="mx-auto flex max-w-6xl flex-col justify-between gap-4 px-4 sm:flex-row sm:items-end sm:px-6">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-widest text-blue-400">
-              COMPANY INFORMATION
-            </p>
-            <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
-              {t.about.title}
-            </h1>
-            <p className="mt-2 max-w-2xl text-sm text-slate-300">
-              {t.about.subtitle}
-            </p>
-          </div>
-          <Link
-            href="/noksan/admin?tab=settings"
-            className="inline-flex items-center gap-1.5 self-start rounded-lg border border-slate-700 bg-slate-800/90 px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-blue-600 hover:border-blue-500 hover:text-white transition-colors"
-          >
-            ⚙️ {adminBtnLabel}
-          </Link>
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <p className="text-xs font-semibold uppercase tracking-widest text-blue-400">
+            COMPANY INFORMATION
+          </p>
+          <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
+            {t.about.title}
+          </h1>
+          <p className="mt-2 max-w-2xl text-sm text-slate-300">
+            {t.about.subtitle}
+          </p>
         </div>
       </section>
 

@@ -139,16 +139,8 @@ export function Footer() {
           <p>
             {t.footer.phone}: {settings.phone} | {t.footer.fax}: {settings.fax} | {t.footer.email}: {settings.email}
           </p>
-          <p className="mt-2 flex items-center justify-between text-slate-500">
-            <span>
-              Copyright © {siteConfig.copyrightYear} {settings.englishName} All rights reserved.
-            </span>
-            <Link
-              href="/noksan/admin"
-              className="rounded bg-slate-800 px-2.5 py-1 text-slate-300 hover:bg-blue-600 hover:text-white transition-colors"
-            >
-              ⚙️ 통합 관리자 페이지 (CMS)
-            </Link>
+          <p className="mt-2 text-slate-500">
+            Copyright © {siteConfig.copyrightYear} {settings.englishName} All rights reserved.
           </p>
         </div>
       </div>

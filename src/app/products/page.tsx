@@ -54,36 +54,19 @@ export default function ProductsPage() {
       ? "🔍 点击放大"
       : "🔍 クリックで拡大";
 
-  const adminBtnLabel =
-    locale === "KR"
-      ? "제품 등록·수정 (관리자)"
-      : locale === "EN"
-      ? "Manage Products (Admin)"
-      : locale === "CN"
-      ? "产品管理 (管理员)"
-      : "製品管理 (管理者)";
-
   return (
     <div className="bg-slate-50">
       <section className="bg-slate-900 py-14 text-white">
-        <div className="mx-auto flex max-w-6xl flex-col justify-between gap-4 px-4 sm:flex-row sm:items-end sm:px-6">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-widest text-blue-400">
-              PRODUCTS & SOLUTIONS
-            </p>
-            <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
-              {t.products.title}
-            </h1>
-            <p className="mt-2 max-w-2xl text-sm text-slate-300">
-              {t.products.subtitle}
-            </p>
-          </div>
-          <Link
-            href="/noksan/admin?tab=products"
-            className="inline-flex items-center gap-1.5 self-start rounded-lg border border-slate-700 bg-slate-800/90 px-4 py-2 text-xs font-semibold text-slate-200 hover:bg-blue-600 hover:border-blue-500 hover:text-white transition-colors"
-          >
-            ⚙️ {adminBtnLabel}
-          </Link>
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <p className="text-xs font-semibold uppercase tracking-widest text-blue-400">
+            PRODUCTS & SOLUTIONS
+          </p>
+          <h1 className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl">
+            {t.products.title}
+          </h1>
+          <p className="mt-2 max-w-2xl text-sm text-slate-300">
+            {t.products.subtitle}
+          </p>
         </div>
       </section>
 
