@@ -1,14 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useLanguage } from "@/context/LanguageContext";
-import { fetchCmsItems, CmsItem, makeSvgDataUrl } from "@/lib/cms";
+import {
+  fetchCmsItems,
+  CmsItem,
+  makeSvgDataUrl,
+  getCategoryTabsConfig,
+  defaultCategoryTabsConfig,
+  FacilityTabsConfig,
+} from "@/lib/cms";
 import { ImageLightbox } from "@/components/ImageLightbox";
 
 export default function ProductsPage() {
   const { locale, t } = useLanguage();
   const [cmsProducts, setCmsProducts] = useState<CmsItem[]>([]);
+  const [tabsConfig, setTabsConfig] = useState<FacilityTabsConfig>(
+    defaultCategoryTabsConfig.products
+  );
+  const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const [zoomImage, setZoomImage] = useState<{ src: string; alt: string; caption?: string } | null>(
     null
   );
@@ -16,6 +26,7 @@ export default function ProductsPage() {
   useEffect(() => {
     const load = () => {
       fetchCmsItems("noksan", "products").then(setCmsProducts);
+      setTabsConfig(getCategoryTabsConfig("noksan", "products"));
     };
     load();
     window.addEventListener("cms-updated", load);
@@ -45,6 +56,32 @@ export default function ProductsPage() {
     };
   });
 
+  const baseCategories =
+    locale === "KR"
+      ? tabsConfig.tabs
+      : Array.from(new Set(displayProducts.map((i) => i.category)));
+
+  const categories = [
+    "ALL",
+    ...Array.from(
+      new Set([...baseCategories, ...displayProducts.map((i) => i.category)])
+    ),
+  ];
+
+  const filteredProducts =
+    selectedCategory === "ALL"
+      ? displayProducts
+      : displayProducts.filter((p) => p.category === selectedCategory);
+
+  const allLabel =
+    locale === "KR"
+      ? tabsConfig.allLabel || "전체 제품"
+      : locale === "EN"
+      ? "All Products"
+      : locale === "CN"
+      ? "全部产品"
+      : "全製品";
+
   const zoomHint =
     locale === "KR"
       ? "🔍 클릭하여 크게 보기"
@@ -70,9 +107,42 @@ export default function ProductsPage() {
         </div>
       </section>
 
+      {/* 서브 탭 네비게이션 (회사소개·설비현황과 통일된 상단 탭 바) */}
+      <div className="sticky top-16 z-40 border-b border-slate-200 bg-white shadow-2xs">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <div className="flex overflow-x-auto no-scrollbar">
+            {categories.map((cat) => {
+              const isSelected = selectedCategory === cat;
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`relative whitespace-nowrap px-5 py-4 text-sm font-semibold transition-colors cursor-pointer ${
+                    isSelected
+                      ? "text-blue-700"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  {cat === "ALL" ? allLabel : cat}
+                  {isSelected && (
+                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
       <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {displayProducts.map((product) => (
+        {filteredProducts.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-white py-16 text-center text-sm text-slate-500">
+            해당 탭({selectedCategory})에 등록된 제품 항목이 없습니다.
+          </div>
+        ) : (
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {filteredProducts.map((product) => (
             <div
               key={product.id}
               className="group flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs transition-shadow hover:shadow-md"
@@ -114,9 +184,10 @@ export default function ProductsPage() {
                 {t.products.materialLabel}:{" "}
                 <span className="font-semibold text-slate-800">{product.material}</span>
               </div>
-            </div>
-          ))}
-        </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {zoomImage && (

@@ -102,10 +102,40 @@ const SETTINGS_KEY_PREFIX = "noksan_site_settings_v2_";
 const INQUIRIES_KEY_PREFIX = "noksan_inquiries_v2_";
 const HOME_CONFIG_KEY_PREFIX = "noksan_home_config_v2_";
 const FACILITY_TABS_KEY_PREFIX = "noksan_facility_tabs_v1_";
+const CATEGORY_TABS_KEY_PREFIX = "noksan_category_tabs_v1_";
 
 export const defaultFacilityTabsConfig: FacilityTabsConfig = {
   allLabel: "전체 설비",
   tabs: ["가공설비", "주조설비", "검사설비"],
+};
+
+export const defaultCategoryTabsConfig: Record<CmsCategory, FacilityTabsConfig> = {
+  facilities: defaultFacilityTabsConfig,
+  products: {
+    allLabel: "전체 제품",
+    tabs: [
+      "선박·해양 부품",
+      "중장비 부품",
+      "산업기계 부품",
+      "펌프·컴프레서",
+      "자동차·방산 부품",
+      "주문제작(OEM)",
+    ],
+  },
+  technology: {
+    allLabel: "전체 기술·인증",
+    tabs: [
+      "품질·환경 경영인증",
+      "선급·해양 인증",
+      "특허·지식재산권",
+      "고객사 인증",
+      "기업부설연구소·기술인증",
+    ],
+  },
+  ir: {
+    allLabel: "전체 공시·IR",
+    tabs: ["정기공시", "주주총회", "IR자료"],
+  },
 };
 
 export function normalizeExternalUrl(raw?: string): string {
@@ -320,12 +350,77 @@ export function renameFacilityTabCategory(
   oldName: string,
   newName: string
 ): void {
+  renameCategoryTab(slug, "facilities", oldName, newName);
+}
+
+export function getCategoryTabsConfig(
+  slug = "noksan",
+  category: CmsCategory
+): FacilityTabsConfig {
+  if (category === "facilities") {
+    return getFacilityTabsConfig(slug);
+  }
+  const fallback = defaultCategoryTabsConfig[category];
+  if (typeof window === "undefined") return fallback;
+  try {
+    const raw = localStorage.getItem(`${CATEGORY_TABS_KEY_PREFIX}${slug}_${category}`);
+    if (!raw) return fallback;
+    const parsed = JSON.parse(raw);
+    return {
+      allLabel: parsed.allLabel || fallback.allLabel,
+      tabs:
+        Array.isArray(parsed.tabs) && parsed.tabs.length > 0
+          ? parsed.tabs
+          : fallback.tabs,
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+export function saveCategoryTabsConfig(
+  slug: string,
+  category: CmsCategory,
+  config: FacilityTabsConfig
+): void {
+  if (category === "facilities") {
+    saveFacilityTabsConfig(slug, config);
+    return;
+  }
+  if (typeof window === "undefined") return;
+  localStorage.setItem(
+    `${CATEGORY_TABS_KEY_PREFIX}${slug}_${category}`,
+    JSON.stringify(config)
+  );
+  window.dispatchEvent(new Event("cms-updated"));
+}
+
+export function resetCategoryTabsConfig(
+  slug = "noksan",
+  category: CmsCategory
+): FacilityTabsConfig {
+  if (category === "facilities") {
+    return resetFacilityTabsConfig(slug);
+  }
+  if (typeof window !== "undefined") {
+    localStorage.removeItem(`${CATEGORY_TABS_KEY_PREFIX}${slug}_${category}`);
+    window.dispatchEvent(new Event("cms-updated"));
+  }
+  return defaultCategoryTabsConfig[category];
+}
+
+export function renameCategoryTab(
+  slug: string,
+  category: CmsCategory,
+  oldName: string,
+  newName: string
+): void {
   if (typeof window === "undefined") return;
   const trimmedNew = newName.trim();
   if (!trimmedNew || oldName === trimmedNew) return;
   const current = getLocalItems(slug);
   const updated = current.map((item) =>
-    item.category === "facilities" && item.subCategory === oldName
+    item.category === category && item.subCategory === oldName
       ? { ...item, subCategory: trimmedNew }
       : item
   );
@@ -694,10 +789,15 @@ export async function createCmsItem(
     createdAt: new Date().toISOString(),
   };
 
-  if (input.category === "facilities" && input.subCategory) {
-    const tabCfg = getFacilityTabsConfig(slug);
+  if (
+    (input.category === "facilities" ||
+      input.category === "products" ||
+      input.category === "technology") &&
+    input.subCategory
+  ) {
+    const tabCfg = getCategoryTabsConfig(slug, input.category);
     if (!tabCfg.tabs.includes(input.subCategory)) {
-      saveFacilityTabsConfig(slug, {
+      saveCategoryTabsConfig(slug, input.category, {
         ...tabCfg,
         tabs: [...tabCfg.tabs, input.subCategory],
       });
@@ -720,10 +820,15 @@ export async function updateCmsItem(
     imageUrl = await fileToDataUrl(file);
   }
 
-  if (input.category === "facilities" && input.subCategory) {
-    const tabCfg = getFacilityTabsConfig(slug);
+  if (
+    (input.category === "facilities" ||
+      input.category === "products" ||
+      input.category === "technology") &&
+    input.subCategory
+  ) {
+    const tabCfg = getCategoryTabsConfig(slug, input.category);
     if (!tabCfg.tabs.includes(input.subCategory)) {
-      saveFacilityTabsConfig(slug, {
+      saveCategoryTabsConfig(slug, input.category, {
         ...tabCfg,
         tabs: [...tabCfg.tabs, input.subCategory],
       });

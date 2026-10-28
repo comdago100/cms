@@ -28,10 +28,11 @@ import {
   uploadMediaFileToUrl,
   FacilityTabsConfig,
   defaultFacilityTabsConfig,
-  getFacilityTabsConfig,
-  saveFacilityTabsConfig,
-  resetFacilityTabsConfig,
-  renameFacilityTabCategory,
+  defaultCategoryTabsConfig,
+  getCategoryTabsConfig,
+  saveCategoryTabsConfig,
+  resetCategoryTabsConfig,
+  renameCategoryTab,
   updateCmsItemLink,
   normalizeExternalUrl,
 } from "@/lib/cms";
@@ -152,12 +153,17 @@ export default function AdminClient({ slug }: { slug: string }) {
     }
     setHomeForm(getHomeConfig(companySlug));
     setSettingsForm(getSiteSettings(companySlug));
-    setFacilityTabsForm(getFacilityTabsConfig(companySlug));
+    setFacilityTabsForm(getCategoryTabsConfig(companySlug, "facilities"));
     setInquiries(getSupportInquiries(companySlug));
   }, [companySlug]);
 
   const isCmsCategory = (tab: AdminMainTab): tab is CmsCategory =>
     ["facilities", "products", "technology", "ir"].includes(tab);
+
+  const hasSubTabsManager = (
+    tab: AdminMainTab
+  ): tab is "facilities" | "products" | "technology" =>
+    tab === "facilities" || tab === "products" || tab === "technology";
 
   const currentTabConfig =
     CATEGORY_TABS.find((t) => t.id === activeTab) || CATEGORY_TABS[0];
@@ -176,9 +182,8 @@ export default function AdminClient({ slug }: { slug: string }) {
             : "";
       }
       setInlineLinks(nextLinks);
-      if (activeTab === "facilities") {
-        setFacilityTabsForm(getFacilityTabsConfig(companySlug));
-      }
+      setFacilityTabsForm(getCategoryTabsConfig(companySlug, activeTab));
+      setNewFacilityTabName("");
     } else if (activeTab === "inquiries") {
       setInquiries(getSupportInquiries(companySlug));
     } else if (activeTab === "settings") {
@@ -296,11 +301,12 @@ export default function AdminClient({ slug }: { slug: string }) {
     alert("기본 항목들이 초기 상태로 복원되었습니다.");
   };
 
-  // 설비현황 상단 탭 메뉴 관리 핸들러
+  // 설비현황 / 제품소개 / 기술정보 상단 탭 메뉴 관리 핸들러
   const handleAddFacilityTab = () => {
+    if (!isCmsCategory(activeTab)) return;
     const trimmed = newFacilityTabName.trim();
     if (!trimmed) {
-      alert("추가할 설비 탭 이름을 입력해주세요. (예: 열처리설비, 자동화설비)");
+      alert("추가할 상단 탭 이름을 입력해주세요.");
       return;
     }
     if (facilityTabsForm.tabs.includes(trimmed)) {
@@ -312,9 +318,9 @@ export default function AdminClient({ slug }: { slug: string }) {
       tabs: [...facilityTabsForm.tabs, trimmed],
     };
     setFacilityTabsForm(updated);
-    saveFacilityTabsConfig(companySlug, updated);
+    saveCategoryTabsConfig(companySlug, activeTab, updated);
     setNewFacilityTabName("");
-    alert(`'${trimmed}' 탭이 설비현황 상단 메뉴에 추가되었습니다!`);
+    alert(`'${trimmed}' 탭이 상단 탭 메뉴에 추가되었습니다!`);
   };
 
   const handleUpdateFacilityTabName = (idx: number, newValue: string) => {
@@ -323,6 +329,7 @@ export default function AdminClient({ slug }: { slug: string }) {
   };
 
   const handleMoveFacilityTab = (idx: number, direction: -1 | 1) => {
+    if (!isCmsCategory(activeTab)) return;
     const targetIdx = idx + direction;
     if (targetIdx < 0 || targetIdx >= facilityTabsForm.tabs.length) return;
     const nextTabs = [...facilityTabsForm.tabs];
@@ -331,53 +338,62 @@ export default function AdminClient({ slug }: { slug: string }) {
     nextTabs[targetIdx] = temp;
     const updated = { ...facilityTabsForm, tabs: nextTabs };
     setFacilityTabsForm(updated);
-    saveFacilityTabsConfig(companySlug, updated);
+    saveCategoryTabsConfig(companySlug, activeTab, updated);
   };
 
   const handleDeleteFacilityTab = (idx: number) => {
+    if (!isCmsCategory(activeTab)) return;
     const tabName = facilityTabsForm.tabs[idx];
     if (facilityTabsForm.tabs.length <= 1) {
-      alert("최소 1개 이상의 설비 탭이 필요합니다.");
+      alert("최소 1개 이상의 분류 탭이 필요합니다.");
       return;
     }
     if (!confirm(`'${tabName}' 탭을 상단 탭 메뉴에서 삭제하시겠습니까?`)) return;
     const nextTabs = facilityTabsForm.tabs.filter((_, i) => i !== idx);
     const updated = { ...facilityTabsForm, tabs: nextTabs };
     setFacilityTabsForm(updated);
-    saveFacilityTabsConfig(companySlug, updated);
+    saveCategoryTabsConfig(companySlug, activeTab, updated);
   };
 
   const handleSaveFacilityTabs = async () => {
-    const prevConfig = getFacilityTabsConfig(companySlug);
+    if (!isCmsCategory(activeTab)) return;
+    const prevConfig = getCategoryTabsConfig(companySlug, activeTab);
     const cleanedTabs = facilityTabsForm.tabs.map((t) => t.trim()).filter(Boolean);
     if (cleanedTabs.length === 0) {
       alert("최소 1개 이상의 탭 이름을 입력해주세요.");
       return;
     }
-    // 탭 이름이 변경된 경우 기존 설비 항목들의 subCategory도 함께 변경
+    // 탭 이름이 변경된 경우 기존 항목들의 subCategory도 함께 변경
     prevConfig.tabs.forEach((oldName, idx) => {
       const newName = facilityTabsForm.tabs[idx]?.trim();
       if (newName && oldName !== newName) {
-        renameFacilityTabCategory(companySlug, oldName, newName);
+        renameCategoryTab(companySlug, activeTab, oldName, newName);
       }
     });
     const updated: FacilityTabsConfig = {
-      allLabel: facilityTabsForm.allLabel.trim() || "전체 설비",
+      allLabel:
+        facilityTabsForm.allLabel.trim() ||
+        defaultCategoryTabsConfig[activeTab].allLabel,
       tabs: cleanedTabs,
     };
     setFacilityTabsForm(updated);
-    saveFacilityTabsConfig(companySlug, updated);
+    saveCategoryTabsConfig(companySlug, activeTab, updated);
     await loadCategoryData();
-    alert("설비현황 상단 탭 메뉴(전체설비·가공설비·주조설비·검사설비 등) 설정이 저장되었습니다!");
+    alert(`${currentTabConfig.label} 상단 탭 메뉴 설정이 저장되었습니다!`);
   };
 
   const handleResetFacilityTabs = async () => {
-    if (!confirm("설비현황 상단 탭 메뉴를 기본값(전체 설비 / 가공설비 / 주조설비 / 검사설비)으로 초기화하시겠습니까?"))
+    if (!isCmsCategory(activeTab)) return;
+    if (
+      !confirm(
+        `${currentTabConfig.label}의 상단 탭 메뉴를 기본값으로 초기화하시겠습니까?`
+      )
+    )
       return;
-    const reset = resetFacilityTabsConfig(companySlug);
+    const reset = resetCategoryTabsConfig(companySlug, activeTab);
     setFacilityTabsForm(reset);
     await loadCategoryData();
-    alert("설비현황 탭 메뉴가 초기화되었습니다.");
+    alert("상단 탭 메뉴가 기본값으로 초기화되었습니다.");
   };
 
   const handleInlineLinkSave = async (item: CmsItem) => {
@@ -1429,8 +1445,8 @@ export default function AdminClient({ slug }: { slug: string }) {
         {/* 2) 설비현황 / 제품소개 / 기술인증서 / 투자공시 관리 탭 */}
         {isCmsCategory(activeTab) && (
           <>
-            {/* 설비현황 전용: 상단 서브 탭 메뉴(전체설비 / 가공설비 / 주조설비 / 검사설비 등) 수정 및 추가 카드 */}
-            {activeTab === "facilities" && (
+            {/* 설비현황 · 제품소개 · 기술정보 공통: 상단 서브 탭 메뉴(수정 · 추가 · 삭제) 카드 */}
+            {hasSubTabsManager(activeTab) && (
               <div className="mt-6 rounded-2xl border border-blue-200 bg-white p-6 shadow-xs sm:p-8">
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-4">
                   <div>
@@ -1438,10 +1454,14 @@ export default function AdminClient({ slug }: { slug: string }) {
                       회사소개 스타일 상단 탭 바 연동
                     </span>
                     <h2 className="mt-1 text-lg font-bold text-slate-900">
-                      🗂️ 설비현황 상단 탭 메뉴 관리 (수정 · 추가 · 삭제)
+                      🗂️ {currentTabConfig.label.replace(" 관리", "")} 상단 탭 메뉴 관리 (수정 · 추가 · 삭제)
                     </h2>
                     <p className="mt-0.5 text-xs text-slate-500">
-                      설비현황 페이지 상단 탭 바(전체 설비 · 가공설비 · 주조설비 · 검사설비 등)의 이름을 수정하거나 새로운 탭을 추가할 수 있습니다.
+                      {activeTab === "facilities"
+                        ? "설비현황 페이지 상단 탭 바(전체 설비 · 가공설비 · 주조설비 · 검사설비 등)의 이름을 수정하거나 새로운 탭을 추가할 수 있습니다."
+                        : activeTab === "products"
+                        ? "제품소개 페이지 상단 탭 바(전체 제품 · 선박·해양 부품 · 중장비 부품 · 산업기계 부품 등)의 이름을 수정하거나 새로운 탭을 추가할 수 있습니다."
+                        : "기술정보 페이지 상단 탭 바(전체 기술·인증 · 품질·환경 경영인증 · 특허·지식재산권 · 고객사 인증 등)의 이름을 수정하거나 새로운 탭을 추가할 수 있습니다."}
                     </p>
                   </div>
                   <button
@@ -1456,11 +1476,11 @@ export default function AdminClient({ slug }: { slug: string }) {
                 {/* 현재 상단 탭 바 미리보기 */}
                 <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
                   <p className="mb-2 text-[11px] font-semibold text-slate-500">
-                    👀 홈페이지 설비현황 상단 탭 바 미리보기 (회사소개와 동일한 디자인)
+                    👀 홈페이지 상단 탭 바 미리보기 (회사소개와 동일한 디자인)
                   </p>
                   <div className="flex overflow-x-auto rounded-lg border border-slate-200 bg-white px-3">
                     <span className="relative whitespace-nowrap px-4 py-3 text-xs font-bold text-blue-700">
-                      {facilityTabsForm.allLabel || "전체 설비"}
+                      {facilityTabsForm.allLabel || defaultCategoryTabsConfig[activeTab].allLabel}
                       <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600" />
                     </span>
                     {facilityTabsForm.tabs.map((tab, idx) => (
@@ -1486,16 +1506,16 @@ export default function AdminClient({ slug }: { slug: string }) {
                       onChange={(e) =>
                         setFacilityTabsForm({ ...facilityTabsForm, allLabel: e.target.value })
                       }
-                      placeholder="예: 전체 설비"
+                      placeholder={`예: ${defaultCategoryTabsConfig[activeTab].allLabel}`}
                       className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm text-slate-900 focus:border-blue-600 focus:outline-none"
                     />
                     <p className="mt-1.5 text-[11px] text-slate-500">
-                      모든 설비를 한눈에 보여주는 첫 번째 탭의 명칭입니다.
+                      모든 항목을 한눈에 보여주는 첫 번째 탭의 명칭입니다.
                     </p>
 
                     <div className="mt-5 border-t border-slate-200 pt-4">
                       <label className="block text-xs font-bold text-blue-800 mb-1.5">
-                        ➕ 새 설비 탭 추가하기
+                        ➕ 새 상단 탭 추가하기
                       </label>
                       <div className="flex gap-2">
                         <input
@@ -1508,7 +1528,13 @@ export default function AdminClient({ slug }: { slug: string }) {
                               handleAddFacilityTab();
                             }
                           }}
-                          placeholder="예: 열처리설비 / 자동화설비"
+                          placeholder={
+                            activeTab === "facilities"
+                              ? "예: 열처리설비 / 자동화설비"
+                              : activeTab === "products"
+                              ? "예: 플랜트 부품 / 신제품"
+                              : "예: 해외인증 / 시험성적서"
+                          }
                           className="flex-1 rounded-lg border border-blue-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-600 focus:outline-none"
                         />
                         <button
@@ -1525,7 +1551,7 @@ export default function AdminClient({ slug }: { slug: string }) {
                   {/* 개별 카테고리 탭 수정/순서/삭제 */}
                   <div className="lg:col-span-8 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
                     <label className="block text-xs font-bold text-slate-700 mb-2">
-                      2. 설비 분류 탭 목록 수정 · 순서 변경 · 삭제 ({facilityTabsForm.tabs.length}개)
+                      2. 상단 분류 탭 목록 수정 · 순서 변경 · 삭제 ({facilityTabsForm.tabs.length}개)
                     </label>
                     <div className="space-y-2.5">
                       {facilityTabsForm.tabs.map((tabName, idx) => (
@@ -1574,14 +1600,14 @@ export default function AdminClient({ slug }: { slug: string }) {
 
                     <div className="mt-4 flex flex-wrap items-center justify-between gap-2 pt-2">
                       <p className="text-[11px] text-slate-500">
-                        * 탭 이름을 수정하고 저장하면 해당 탭에 속해 있던 설비들의 분류명도 자동으로 함께 변경됩니다.
+                        * 탭 이름을 수정하고 저장하면 해당 탭에 속해 있던 항목들의 분류명도 자동으로 함께 변경됩니다.
                       </p>
                       <button
                         type="button"
                         onClick={handleSaveFacilityTabs}
                         className="rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-blue-500 transition-colors cursor-pointer"
                       >
-                        💾 설비 상단 탭 설정 저장하기
+                        💾 상단 탭 설정 저장하기
                       </button>
                     </div>
                   </div>
@@ -1611,7 +1637,7 @@ export default function AdminClient({ slug }: { slug: string }) {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                      분류 / 카테고리 {activeTab === "facilities" && "(상단 탭 선택 또는 직접 입력)"}
+                      분류 / 카테고리 {hasSubTabsManager(activeTab) && "(상단 탭 선택 또는 직접 입력)"}
                     </label>
                     <input
                       type="text"
@@ -1620,7 +1646,7 @@ export default function AdminClient({ slug }: { slug: string }) {
                       placeholder={currentTabConfig.subCategoryPlaceholder}
                       className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 focus:border-blue-600 focus:outline-none"
                     />
-                    {activeTab === "facilities" && facilityTabsForm.tabs.length > 0 && (
+                    {facilityTabsForm.tabs.length > 0 && (
                       <div className="mt-2 flex flex-wrap items-center gap-1.5">
                         <span className="text-[11px] font-semibold text-slate-500 mr-1">
                           탭 빠른 선택:

@@ -1,14 +1,24 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useLanguage } from "@/context/LanguageContext";
-import { fetchCmsItems, CmsItem, makeSvgDataUrl } from "@/lib/cms";
+import {
+  fetchCmsItems,
+  CmsItem,
+  makeSvgDataUrl,
+  getCategoryTabsConfig,
+  defaultCategoryTabsConfig,
+  FacilityTabsConfig,
+} from "@/lib/cms";
 import { ImageLightbox } from "@/components/ImageLightbox";
 
 export default function TechnologyPage() {
   const { locale, t } = useLanguage();
   const [cmsTech, setCmsTech] = useState<CmsItem[]>([]);
+  const [tabsConfig, setTabsConfig] = useState<FacilityTabsConfig>(
+    defaultCategoryTabsConfig.technology
+  );
+  const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const [zoomImage, setZoomImage] = useState<{ src: string; alt: string; caption?: string } | null>(
     null
   );
@@ -16,6 +26,7 @@ export default function TechnologyPage() {
   useEffect(() => {
     const load = () => {
       fetchCmsItems("noksan", "technology").then(setCmsTech);
+      setTabsConfig(getCategoryTabsConfig("noksan", "technology"));
     };
     load();
     window.addEventListener("cms-updated", load);
@@ -47,6 +58,32 @@ export default function TechnologyPage() {
     };
   });
 
+  const baseCategories =
+    locale === "KR"
+      ? tabsConfig.tabs
+      : Array.from(new Set(displayItems.map((i) => i.category)));
+
+  const categories = [
+    "ALL",
+    ...Array.from(
+      new Set([...baseCategories, ...displayItems.map((i) => i.category)])
+    ),
+  ];
+
+  const filteredItems =
+    selectedCategory === "ALL"
+      ? displayItems
+      : displayItems.filter((item) => item.category === selectedCategory);
+
+  const allLabel =
+    locale === "KR"
+      ? tabsConfig.allLabel || "전체 기술·인증"
+      : locale === "EN"
+      ? "All Certifications"
+      : locale === "CN"
+      ? "全部技术·认证"
+      : "全技術・認証";
+
   const zoomHint =
     locale === "KR"
       ? "🔍 인증서·특허 확대보기"
@@ -72,9 +109,42 @@ export default function TechnologyPage() {
         </div>
       </section>
 
+      {/* 서브 탭 네비게이션 (회사소개·설비현황과 통일된 상단 탭 바) */}
+      <div className="sticky top-16 z-40 border-b border-slate-200 bg-white shadow-2xs">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <div className="flex overflow-x-auto no-scrollbar">
+            {categories.map((cat) => {
+              const isSelected = selectedCategory === cat;
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`relative whitespace-nowrap px-5 py-4 text-sm font-semibold transition-colors cursor-pointer ${
+                    isSelected
+                      ? "text-blue-700"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  {cat === "ALL" ? allLabel : cat}
+                  {isSelected && (
+                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
       <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
-        <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {displayItems.map((item) => (
+        {filteredItems.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-white py-16 text-center text-sm text-slate-500">
+            해당 탭({selectedCategory})에 등록된 기술·인증서 항목이 없습니다.
+          </div>
+        ) : (
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {filteredItems.map((item) => (
             <div
               key={item.id}
               className="group flex flex-col justify-between overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs transition-shadow hover:shadow-md"
@@ -123,9 +193,10 @@ export default function TechnologyPage() {
                   {t.technology.dateLabel}: {item.date}
                 </span>
               </div>
-            </div>
-          ))}
-        </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {zoomImage && (
