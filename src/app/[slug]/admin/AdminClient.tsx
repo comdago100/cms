@@ -26,6 +26,14 @@ import {
   saveHomeConfig,
   resetHomeConfig,
   uploadMediaFileToUrl,
+  FacilityTabsConfig,
+  defaultFacilityTabsConfig,
+  getFacilityTabsConfig,
+  saveFacilityTabsConfig,
+  resetFacilityTabsConfig,
+  renameFacilityTabCategory,
+  updateCmsItemLink,
+  normalizeExternalUrl,
 } from "@/lib/cms";
 
 type AdminMainTab = "home" | "settings" | CmsCategory | "inquiries";
@@ -108,6 +116,11 @@ export default function AdminClient({ slug }: { slug: string }) {
   const [activeTab, setActiveTab] = useState<AdminMainTab>("home");
   const [homeForm, setHomeForm] = useState<HomeConfig>(defaultHomeConfig);
   const [settingsForm, setSettingsForm] = useState<SiteSettings>(defaultSiteSettings);
+  const [facilityTabsForm, setFacilityTabsForm] = useState<FacilityTabsConfig>(
+    defaultFacilityTabsConfig
+  );
+  const [newFacilityTabName, setNewFacilityTabName] = useState("");
+  const [inlineLinks, setInlineLinks] = useState<Record<string, string>>({});
   const [items, setItems] = useState<CmsItem[]>([]);
   const [inquiries, setInquiries] = useState<SupportInquiry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -139,6 +152,7 @@ export default function AdminClient({ slug }: { slug: string }) {
     }
     setHomeForm(getHomeConfig(companySlug));
     setSettingsForm(getSiteSettings(companySlug));
+    setFacilityTabsForm(getFacilityTabsConfig(companySlug));
     setInquiries(getSupportInquiries(companySlug));
   }, [companySlug]);
 
@@ -152,6 +166,19 @@ export default function AdminClient({ slug }: { slug: string }) {
     if (isCmsCategory(activeTab)) {
       const data = await fetchCmsItems(companySlug, activeTab);
       setItems(data);
+      const nextLinks: Record<string, string> = {};
+      for (const item of data) {
+        nextLinks[item.id] =
+          item.linkUrl !== undefined
+            ? item.linkUrl
+            : item.id.startsWith("seed_ir_")
+            ? "https://dart.fss.or.kr"
+            : "";
+      }
+      setInlineLinks(nextLinks);
+      if (activeTab === "facilities") {
+        setFacilityTabsForm(getFacilityTabsConfig(companySlug));
+      }
     } else if (activeTab === "inquiries") {
       setInquiries(getSupportInquiries(companySlug));
     } else if (activeTab === "settings") {
@@ -267,6 +294,101 @@ export default function AdminClient({ slug }: { slug: string }) {
     resetAllCmsItemsToDefault(companySlug);
     await loadCategoryData();
     alert("기본 항목들이 초기 상태로 복원되었습니다.");
+  };
+
+  // 설비현황 상단 탭 메뉴 관리 핸들러
+  const handleAddFacilityTab = () => {
+    const trimmed = newFacilityTabName.trim();
+    if (!trimmed) {
+      alert("추가할 설비 탭 이름을 입력해주세요. (예: 열처리설비, 자동화설비)");
+      return;
+    }
+    if (facilityTabsForm.tabs.includes(trimmed)) {
+      alert("이미 존재하는 탭 이름입니다.");
+      return;
+    }
+    const updated: FacilityTabsConfig = {
+      ...facilityTabsForm,
+      tabs: [...facilityTabsForm.tabs, trimmed],
+    };
+    setFacilityTabsForm(updated);
+    saveFacilityTabsConfig(companySlug, updated);
+    setNewFacilityTabName("");
+    alert(`'${trimmed}' 탭이 설비현황 상단 메뉴에 추가되었습니다!`);
+  };
+
+  const handleUpdateFacilityTabName = (idx: number, newValue: string) => {
+    const nextTabs = facilityTabsForm.tabs.map((t, i) => (i === idx ? newValue : t));
+    setFacilityTabsForm({ ...facilityTabsForm, tabs: nextTabs });
+  };
+
+  const handleMoveFacilityTab = (idx: number, direction: -1 | 1) => {
+    const targetIdx = idx + direction;
+    if (targetIdx < 0 || targetIdx >= facilityTabsForm.tabs.length) return;
+    const nextTabs = [...facilityTabsForm.tabs];
+    const temp = nextTabs[idx];
+    nextTabs[idx] = nextTabs[targetIdx];
+    nextTabs[targetIdx] = temp;
+    const updated = { ...facilityTabsForm, tabs: nextTabs };
+    setFacilityTabsForm(updated);
+    saveFacilityTabsConfig(companySlug, updated);
+  };
+
+  const handleDeleteFacilityTab = (idx: number) => {
+    const tabName = facilityTabsForm.tabs[idx];
+    if (facilityTabsForm.tabs.length <= 1) {
+      alert("최소 1개 이상의 설비 탭이 필요합니다.");
+      return;
+    }
+    if (!confirm(`'${tabName}' 탭을 상단 탭 메뉴에서 삭제하시겠습니까?`)) return;
+    const nextTabs = facilityTabsForm.tabs.filter((_, i) => i !== idx);
+    const updated = { ...facilityTabsForm, tabs: nextTabs };
+    setFacilityTabsForm(updated);
+    saveFacilityTabsConfig(companySlug, updated);
+  };
+
+  const handleSaveFacilityTabs = async () => {
+    const prevConfig = getFacilityTabsConfig(companySlug);
+    const cleanedTabs = facilityTabsForm.tabs.map((t) => t.trim()).filter(Boolean);
+    if (cleanedTabs.length === 0) {
+      alert("최소 1개 이상의 탭 이름을 입력해주세요.");
+      return;
+    }
+    // 탭 이름이 변경된 경우 기존 설비 항목들의 subCategory도 함께 변경
+    prevConfig.tabs.forEach((oldName, idx) => {
+      const newName = facilityTabsForm.tabs[idx]?.trim();
+      if (newName && oldName !== newName) {
+        renameFacilityTabCategory(companySlug, oldName, newName);
+      }
+    });
+    const updated: FacilityTabsConfig = {
+      allLabel: facilityTabsForm.allLabel.trim() || "전체 설비",
+      tabs: cleanedTabs,
+    };
+    setFacilityTabsForm(updated);
+    saveFacilityTabsConfig(companySlug, updated);
+    await loadCategoryData();
+    alert("설비현황 상단 탭 메뉴(전체설비·가공설비·주조설비·검사설비 등) 설정이 저장되었습니다!");
+  };
+
+  const handleResetFacilityTabs = async () => {
+    if (!confirm("설비현황 상단 탭 메뉴를 기본값(전체 설비 / 가공설비 / 주조설비 / 검사설비)으로 초기화하시겠습니까?"))
+      return;
+    const reset = resetFacilityTabsConfig(companySlug);
+    setFacilityTabsForm(reset);
+    await loadCategoryData();
+    alert("설비현황 탭 메뉴가 초기화되었습니다.");
+  };
+
+  const handleInlineLinkSave = async (item: CmsItem) => {
+    const rawUrl = inlineLinks[item.id] ?? "";
+    updateCmsItemLink(companySlug, item.id, rawUrl);
+    await loadCategoryData();
+    alert(
+      rawUrl.trim()
+        ? `🔗 '${item.title}' 항목에 링크가 적용되었습니다!\n이제 목록을 클릭하면 새 창으로 이동합니다.`
+        : `🔗 '${item.title}' 항목의 링크가 해제되었습니다.`
+    );
   };
 
   const handleSaveHomeConfig = (e: React.FormEvent) => {
@@ -1307,6 +1429,166 @@ export default function AdminClient({ slug }: { slug: string }) {
         {/* 2) 설비현황 / 제품소개 / 기술인증서 / 투자공시 관리 탭 */}
         {isCmsCategory(activeTab) && (
           <>
+            {/* 설비현황 전용: 상단 서브 탭 메뉴(전체설비 / 가공설비 / 주조설비 / 검사설비 등) 수정 및 추가 카드 */}
+            {activeTab === "facilities" && (
+              <div className="mt-6 rounded-2xl border border-blue-200 bg-white p-6 shadow-xs sm:p-8">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-4">
+                  <div>
+                    <span className="inline-block rounded-full bg-blue-50 px-2.5 py-0.5 text-[11px] font-bold text-blue-700">
+                      회사소개 스타일 상단 탭 바 연동
+                    </span>
+                    <h2 className="mt-1 text-lg font-bold text-slate-900">
+                      🗂️ 설비현황 상단 탭 메뉴 관리 (수정 · 추가 · 삭제)
+                    </h2>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      설비현황 페이지 상단 탭 바(전체 설비 · 가공설비 · 주조설비 · 검사설비 등)의 이름을 수정하거나 새로운 탭을 추가할 수 있습니다.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleResetFacilityTabs}
+                    className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                  >
+                    기본 탭으로 초기화
+                  </button>
+                </div>
+
+                {/* 현재 상단 탭 바 미리보기 */}
+                <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="mb-2 text-[11px] font-semibold text-slate-500">
+                    👀 홈페이지 설비현황 상단 탭 바 미리보기 (회사소개와 동일한 디자인)
+                  </p>
+                  <div className="flex overflow-x-auto rounded-lg border border-slate-200 bg-white px-3">
+                    <span className="relative whitespace-nowrap px-4 py-3 text-xs font-bold text-blue-700">
+                      {facilityTabsForm.allLabel || "전체 설비"}
+                      <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600" />
+                    </span>
+                    {facilityTabsForm.tabs.map((tab, idx) => (
+                      <span
+                        key={idx}
+                        className="whitespace-nowrap px-4 py-3 text-xs font-semibold text-slate-600"
+                      >
+                        {tab}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-5 grid gap-5 lg:grid-cols-12">
+                  {/* 전체 보기 탭 이름 */}
+                  <div className="lg:col-span-4 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                      1. 첫 번째(전체 보기) 탭 이름
+                    </label>
+                    <input
+                      type="text"
+                      value={facilityTabsForm.allLabel}
+                      onChange={(e) =>
+                        setFacilityTabsForm({ ...facilityTabsForm, allLabel: e.target.value })
+                      }
+                      placeholder="예: 전체 설비"
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm text-slate-900 focus:border-blue-600 focus:outline-none"
+                    />
+                    <p className="mt-1.5 text-[11px] text-slate-500">
+                      모든 설비를 한눈에 보여주는 첫 번째 탭의 명칭입니다.
+                    </p>
+
+                    <div className="mt-5 border-t border-slate-200 pt-4">
+                      <label className="block text-xs font-bold text-blue-800 mb-1.5">
+                        ➕ 새 설비 탭 추가하기
+                      </label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={newFacilityTabName}
+                          onChange={(e) => setNewFacilityTabName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              handleAddFacilityTab();
+                            }
+                          }}
+                          placeholder="예: 열처리설비 / 자동화설비"
+                          className="flex-1 rounded-lg border border-blue-300 bg-white px-3 py-2 text-sm text-slate-900 focus:border-blue-600 focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={handleAddFacilityTab}
+                          className="shrink-0 rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-bold text-white hover:bg-blue-500 cursor-pointer"
+                        >
+                          + 탭 추가
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 개별 카테고리 탭 수정/순서/삭제 */}
+                  <div className="lg:col-span-8 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
+                    <label className="block text-xs font-bold text-slate-700 mb-2">
+                      2. 설비 분류 탭 목록 수정 · 순서 변경 · 삭제 ({facilityTabsForm.tabs.length}개)
+                    </label>
+                    <div className="space-y-2.5">
+                      {facilityTabsForm.tabs.map((tabName, idx) => (
+                        <div
+                          key={idx}
+                          className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white p-2"
+                        >
+                          <span className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded bg-slate-100 text-xs font-bold text-slate-600">
+                            {idx + 1}
+                          </span>
+                          <input
+                            type="text"
+                            value={tabName}
+                            onChange={(e) => handleUpdateFacilityTabName(idx, e.target.value)}
+                            placeholder="탭 이름 입력"
+                            className="flex-1 rounded-md border border-slate-300 px-3 py-1.5 text-sm font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleMoveFacilityTab(idx, -1)}
+                            disabled={idx === 0}
+                            className="rounded border border-slate-200 px-2 py-1 text-xs font-bold text-slate-600 hover:bg-slate-100 disabled:opacity-30 cursor-pointer"
+                            title="위로 이동"
+                          >
+                            ▲
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleMoveFacilityTab(idx, 1)}
+                            disabled={idx === facilityTabsForm.tabs.length - 1}
+                            className="rounded border border-slate-200 px-2 py-1 text-xs font-bold text-slate-600 hover:bg-slate-100 disabled:opacity-30 cursor-pointer"
+                            title="아래로 이동"
+                          >
+                            ▼
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteFacilityTab(idx)}
+                            className="rounded bg-red-50 px-2.5 py-1.5 text-xs font-bold text-red-600 hover:bg-red-500 hover:text-white transition-colors cursor-pointer"
+                          >
+                            삭제
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap items-center justify-between gap-2 pt-2">
+                      <p className="text-[11px] text-slate-500">
+                        * 탭 이름을 수정하고 저장하면 해당 탭에 속해 있던 설비들의 분류명도 자동으로 함께 변경됩니다.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={handleSaveFacilityTabs}
+                        className="rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-blue-500 transition-colors cursor-pointer"
+                      >
+                        💾 설비 상단 탭 설정 저장하기
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-xs sm:p-8">
               <div className="flex items-center justify-between border-b border-slate-100 pb-4">
                 <h2 className="text-lg font-bold text-slate-900">
@@ -1329,7 +1611,7 @@ export default function AdminClient({ slug }: { slug: string }) {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                      분류 / 카테고리
+                      분류 / 카테고리 {activeTab === "facilities" && "(상단 탭 선택 또는 직접 입력)"}
                     </label>
                     <input
                       type="text"
@@ -1338,6 +1620,27 @@ export default function AdminClient({ slug }: { slug: string }) {
                       placeholder={currentTabConfig.subCategoryPlaceholder}
                       className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 focus:border-blue-600 focus:outline-none"
                     />
+                    {activeTab === "facilities" && facilityTabsForm.tabs.length > 0 && (
+                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                        <span className="text-[11px] font-semibold text-slate-500 mr-1">
+                          탭 빠른 선택:
+                        </span>
+                        {facilityTabsForm.tabs.map((tabName) => (
+                          <button
+                            key={tabName}
+                            type="button"
+                            onClick={() => setSubCategory(tabName)}
+                            className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer ${
+                              subCategory === tabName
+                                ? "bg-blue-600 text-white"
+                                : "border border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200"
+                            }`}
+                          >
+                            {tabName}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
 
                   <div>
@@ -1354,6 +1657,25 @@ export default function AdminClient({ slug }: { slug: string }) {
                     />
                   </div>
                 </div>
+
+                {/* 투자·공시 관리 전용: 상단에서 바로 보이는 새창 이동 링크(URL) 입력란 */}
+                {activeTab === "ir" && (
+                  <div className="rounded-xl border-2 border-blue-300 bg-blue-50/70 p-4">
+                    <label className="block text-xs font-bold text-blue-900 mb-1.5">
+                      🔗 목록 클릭 시 새 창으로 이동할 링크 주소 (DART 전자공시 / 외부 URL)
+                    </label>
+                    <input
+                      type="text"
+                      value={linkUrl}
+                      onChange={(e) => setLinkUrl(e.target.value)}
+                      placeholder="예: https://dart.fss.or.kr/dsaf001/main.do?rcpNo=... (입력 시 목록을 누르면 새 창으로 이동합니다)"
+                      className="w-full rounded-lg border border-blue-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 focus:border-blue-600 focus:outline-none"
+                    />
+                    <p className="mt-1.5 text-[11px] text-blue-800">
+                      * 여기에 DART 공시 링크나 이동할 주소를 입력하면 홈페이지 투자정보 목록과 아래 관리자 목록에서 클릭 시 새 창으로 열립니다. (아래 목록에서도 항목별로 바로 링크를 입력·수정할 수 있습니다!)
+                    </p>
+                  </div>
+                )}
 
                 <div className="grid gap-4 sm:grid-cols-3">
                   <div>
@@ -1410,24 +1732,6 @@ export default function AdminClient({ slug }: { slug: string }) {
                     className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 focus:border-blue-600 focus:outline-none"
                   />
                 </div>
-
-                {activeTab === "ir" && (
-                  <div className="rounded-xl border border-blue-200 bg-blue-50/50 p-4">
-                    <label className="block text-xs font-bold text-blue-900 mb-1.5">
-                      🔗 제목 클릭 시 이동할 DART 공시 / 외부 링크 주소 (URL)
-                    </label>
-                    <input
-                      type="url"
-                      value={linkUrl}
-                      onChange={(e) => setLinkUrl(e.target.value)}
-                      placeholder="예: https://dart.fss.or.kr/dsaf001/main.do?rcpNo=... (입력 시 공시 제목을 누르면 해당 주소로 이동합니다)"
-                      className="w-full rounded-lg border border-blue-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 focus:border-blue-600 focus:outline-none"
-                    />
-                    <p className="mt-1.5 text-[11px] text-slate-600">
-                      * DART 전자공시 상세 페이지 주소나 첨부 문서 링크를 입력하면 홈페이지 투자정보 목록과 아래 관리자 목록에서 제목 클릭 시 새 창으로 바로 연결됩니다.
-                    </p>
-                  </div>
-                )}
 
                 {currentTabConfig.showImage && (
                   <div className="grid gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 sm:grid-cols-2">
@@ -1490,7 +1794,9 @@ export default function AdminClient({ slug }: { slug: string }) {
                     현재 홈페이지에 표시 중인 전체 목록 ({items.length}건)
                   </h2>
                   <p className="text-xs text-slate-500">
-                    기존 기본 항목들도 [수정] 버튼을 눌러 이름, 규격, 사진 등을 자유롭게 변경하거나 [삭제]할 수 있습니다.
+                    {activeTab === "ir"
+                      ? "목록의 제목을 누르면 적용된 링크가 새 창으로 열립니다. 각 항목 아래 입력칸에 원하는 DART/외부 링크를 넣고 [링크 적용]을 누르세요."
+                      : "기존 기본 항목들도 [수정] 버튼을 눌러 이름, 규격, 사진 등을 자유롭게 변경하거나 [삭제]할 수 있습니다."}
                   </p>
                 </div>
                 <button
@@ -1503,103 +1809,144 @@ export default function AdminClient({ slug }: { slug: string }) {
               </div>
 
               <div className="divide-y divide-slate-200">
-                {items.map((item) => (
-                  <div
-                    key={item.id}
-                    className="flex flex-col justify-between gap-4 py-4 sm:flex-row sm:items-center"
-                  >
-                    <div className="flex items-center gap-4">
-                      {currentTabConfig.showImage && (
-                        <div className="h-16 w-24 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-900">
-                          {item.imageUrl ? (
-                            <img
-                              src={item.imageUrl}
-                              alt={item.title}
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            <div className="flex h-full w-full items-center justify-center text-[11px] text-slate-400">
-                              이미지 없음
+                {items.map((item) => {
+                  const resolvedLink = normalizeExternalUrl(
+                    item.linkUrl !== undefined
+                      ? item.linkUrl
+                      : item.id.startsWith("seed_ir_")
+                      ? "https://dart.fss.or.kr"
+                      : ""
+                  );
+                  return (
+                    <div key={item.id} className="py-4">
+                      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+                        <div
+                          onClick={() => {
+                            if (resolvedLink) {
+                              window.open(resolvedLink, "_blank", "noopener,noreferrer");
+                            }
+                          }}
+                          className={`flex items-center gap-4 ${
+                            resolvedLink ? "cursor-pointer group" : ""
+                          }`}
+                        >
+                          {currentTabConfig.showImage && (
+                            <div className="h-16 w-24 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-900">
+                              {item.imageUrl ? (
+                                <img
+                                  src={item.imageUrl}
+                                  alt={item.title}
+                                  className="h-full w-full object-cover"
+                                />
+                              ) : (
+                                <div className="flex h-full w-full items-center justify-center text-[11px] text-slate-400">
+                                  이미지 없음
+                                </div>
+                              )}
                             </div>
                           )}
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="rounded bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
+                                {item.subCategory}
+                              </span>
+                              {resolvedLink ? (
+                                <a
+                                  href={resolvedLink}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="font-bold text-slate-900 group-hover:text-blue-600 group-hover:underline inline-flex items-center gap-1.5 transition-colors"
+                                  title="클릭 시 새 창으로 링크 열기"
+                                >
+                                  <span>{item.title}</span>
+                                  <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[11px] font-bold text-blue-700">
+                                    새창 이동 ↗
+                                  </span>
+                                </a>
+                              ) : (
+                                <h3 className="font-bold text-slate-900">{item.title}</h3>
+                              )}
+                            </div>
+                            <p className="mt-1 text-xs text-slate-600">
+                              {item.specOrMaterial &&
+                                `${currentTabConfig.specLabel}: ${item.specOrMaterial}`}
+                              {item.qtyOrDate &&
+                                ` | ${currentTabConfig.qtyLabel}: ${item.qtyOrDate}`}
+                              {item.maker && ` | 제조사: ${item.maker}`}
+                            </p>
+                            {item.description && (
+                              <p className="mt-1 text-xs text-slate-500 line-clamp-1">
+                                {item.description}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
+                          {resolvedLink && (
+                            <a
+                              href={resolvedLink}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 transition-colors"
+                            >
+                              새창 열기 ↗
+                            </a>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => handleEditClick(item)}
+                            className="rounded-lg border border-blue-600 bg-blue-50 px-3.5 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-600 hover:text-white transition-colors cursor-pointer"
+                          >
+                            ✏️ 수정
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteCmsItem(item.id)}
+                            className="rounded-lg bg-red-500 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-red-600 transition-colors cursor-pointer"
+                          >
+                            삭제
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* 투자·공시 관리(ir) 목록에서 바로 링크를 입력/적용할 수 있는 인라인 링크 설정 바 */}
+                      {activeTab === "ir" && (
+                        <div className="mt-3 flex flex-col gap-2 rounded-xl border border-blue-200 bg-blue-50/50 p-3 sm:flex-row sm:items-center">
+                          <span className="shrink-0 text-xs font-bold text-blue-900">
+                            🔗 이동 링크(URL):
+                          </span>
+                          <input
+                            type="text"
+                            value={inlineLinks[item.id] ?? ""}
+                            onChange={(e) =>
+                              setInlineLinks({
+                                ...inlineLinks,
+                                [item.id]: e.target.value,
+                              })
+                            }
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                handleInlineLinkSave(item);
+                              }
+                            }}
+                            placeholder="https://dart.fss.or.kr/... (클릭 시 새 창으로 열릴 주소 입력)"
+                            className="flex-1 rounded-lg border border-blue-300 bg-white px-3 py-1.5 text-xs text-slate-900 focus:border-blue-600 focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => handleInlineLinkSave(item)}
+                            className="shrink-0 rounded-lg bg-blue-600 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-blue-500 transition-colors cursor-pointer"
+                          >
+                            💾 링크 적용
+                          </button>
                         </div>
                       )}
-                      <div>
-                        {(() => {
-                          const resolvedLink =
-                            item.linkUrl !== undefined
-                              ? item.linkUrl
-                              : item.id.startsWith("seed_ir_")
-                              ? "https://dart.fss.or.kr"
-                              : "";
-                          return (
-                            <>
-                              <div className="flex flex-wrap items-center gap-2">
-                                <span className="rounded bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
-                                  {item.subCategory}
-                                </span>
-                                {resolvedLink ? (
-                                  <a
-                                    href={resolvedLink}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="font-bold text-slate-900 hover:text-blue-600 hover:underline inline-flex items-center gap-1 transition-colors"
-                                    title="클릭 시 연결된 링크로 이동"
-                                  >
-                                    {item.title}
-                                    <span className="text-xs font-normal text-blue-600">↗</span>
-                                  </a>
-                                ) : (
-                                  <h3 className="font-bold text-slate-900">{item.title}</h3>
-                                )}
-                              </div>
-                              <p className="mt-1 text-xs text-slate-600">
-                                {item.specOrMaterial && `${currentTabConfig.specLabel}: ${item.specOrMaterial}`}
-                                {item.qtyOrDate && ` | ${currentTabConfig.qtyLabel}: ${item.qtyOrDate}`}
-                                {item.maker && ` | 제조사: ${item.maker}`}
-                              </p>
-                              {resolvedLink && (
-                                <p className="mt-1 text-xs text-blue-600 break-all">
-                                  🔗 연결 링크:{" "}
-                                  <a
-                                    href={resolvedLink}
-                                    target="_blank"
-                                    rel="noopener noreferrer"
-                                    className="underline hover:text-blue-800"
-                                  >
-                                    {resolvedLink}
-                                  </a>
-                                </p>
-                              )}
-                              {item.description && (
-                                <p className="mt-1 text-xs text-slate-500 line-clamp-1">
-                                  {item.description}
-                                </p>
-                              )}
-                            </>
-                          );
-                        })()}
-                      </div>
                     </div>
-
-                    <div className="flex items-center gap-2 self-end sm:self-center shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => handleEditClick(item)}
-                        className="rounded-lg border border-blue-600 bg-blue-50 px-3.5 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-600 hover:text-white transition-colors cursor-pointer"
-                      >
-                        ✏️ 수정
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteCmsItem(item.id)}
-                        className="rounded-lg bg-red-500 px-3.5 py-1.5 text-xs font-bold text-white hover:bg-red-600 transition-colors cursor-pointer"
-                      >
-                        삭제
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </>

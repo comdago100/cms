@@ -1,14 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { useLanguage } from "@/context/LanguageContext";
-import { fetchCmsItems, CmsItem, makeSvgDataUrl } from "@/lib/cms";
+import {
+  fetchCmsItems,
+  CmsItem,
+  makeSvgDataUrl,
+  getFacilityTabsConfig,
+  defaultFacilityTabsConfig,
+  FacilityTabsConfig,
+} from "@/lib/cms";
 import { ImageLightbox } from "@/components/ImageLightbox";
 
 export default function FacilitiesPage() {
   const { locale, t } = useLanguage();
   const [cmsFacilities, setCmsFacilities] = useState<CmsItem[]>([]);
+  const [tabsConfig, setTabsConfig] = useState<FacilityTabsConfig>(defaultFacilityTabsConfig);
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const [zoomImage, setZoomImage] = useState<{ src: string; alt: string; caption?: string } | null>(
     null
@@ -17,6 +24,7 @@ export default function FacilitiesPage() {
   useEffect(() => {
     const load = () => {
       fetchCmsItems("noksan", "facilities").then(setCmsFacilities);
+      setTabsConfig(getFacilityTabsConfig("noksan"));
     };
     load();
     window.addEventListener("cms-updated", load);
@@ -50,9 +58,27 @@ export default function FacilitiesPage() {
     };
   });
 
+  const translateTabName = (krName: string) => {
+    if (locale === "KR") return krName;
+    const map: Record<string, { EN: string; CN: string; JP: string }> = {
+      가공설비: { EN: "Machining", CN: "加工设备", JP: "加工設備" },
+      주조설비: { EN: "Foundry", CN: "铸造设备", JP: "鋳造設備" },
+      검사설비: { EN: "Inspection", CN: "检测设备", JP: "検査設備" },
+    };
+    return map[krName]?.[locale] || krName;
+  };
+
+  // 관리자가 설정한 탭 순서 + 설비 항목에 존재하는 추가 탭 병합
+  const baseCategories =
+    locale === "KR"
+      ? tabsConfig.tabs
+      : tabsConfig.tabs.map((tabName) => translateTabName(tabName));
+
   const categories = [
     "ALL",
-    ...Array.from(new Set(displayItems.map((i) => i.category))),
+    ...Array.from(
+      new Set([...baseCategories, ...displayItems.map((i) => i.category)])
+    ),
   ];
 
   const filteredItems =
@@ -62,7 +88,7 @@ export default function FacilitiesPage() {
 
   const allLabel =
     locale === "KR"
-      ? "전체 설비"
+      ? tabsConfig.allLabel || "전체 설비"
       : locale === "EN"
       ? "All Equipment"
       : locale === "CN"
@@ -95,31 +121,43 @@ export default function FacilitiesPage() {
         </div>
       </section>
 
-      <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
-        {/* 카테고리 필터 버튼 */}
-        <div className="flex flex-wrap items-center gap-2">
-          {categories.map((cat) => {
-            const active = selectedCategory === cat;
-            return (
-              <button
-                key={cat}
-                type="button"
-                onClick={() => setSelectedCategory(cat)}
-                className={`rounded-full px-4 py-2 text-xs font-semibold transition-all cursor-pointer ${
-                  active
-                    ? "bg-blue-600 text-white shadow-xs"
-                    : "border border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:text-slate-900"
-                }`}
-              >
-                {cat === "ALL" ? allLabel : cat}
-              </button>
-            );
-          })}
+      {/* 서브 탭 네비게이션 (회사소개 페이지와 통일된 상단 탭 바) */}
+      <div className="sticky top-16 z-40 border-b border-slate-200 bg-white shadow-2xs">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <div className="flex overflow-x-auto no-scrollbar">
+            {categories.map((cat) => {
+              const isSelected = selectedCategory === cat;
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setSelectedCategory(cat)}
+                  className={`relative whitespace-nowrap px-5 py-4 text-sm font-semibold transition-colors cursor-pointer ${
+                    isSelected
+                      ? "text-blue-700"
+                      : "text-slate-600 hover:text-slate-900"
+                  }`}
+                >
+                  {cat === "ALL" ? allLabel : cat}
+                  {isSelected && (
+                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
+      </div>
 
+      <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
         {/* 1. 설비 이미지 포토 카드 그리드 (클릭 시 라이트박스 확대) */}
-        <div className="mt-8 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredItems.map((item) => (
+        {filteredItems.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-white py-16 text-center text-sm text-slate-500">
+            해당 탭({selectedCategory})에 등록된 설비 항목이 없습니다.
+          </div>
+        ) : (
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {filteredItems.map((item) => (
             <div
               key={item.id}
               className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs transition-shadow hover:shadow-md flex flex-col justify-between"
@@ -185,6 +223,7 @@ export default function FacilitiesPage() {
             </div>
           ))}
         </div>
+        )}
 
         {/* 2. 한눈에 보는 전체 보유설비 총괄표 */}
         <div className="mt-14">

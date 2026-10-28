@@ -9,6 +9,7 @@ import {
   getSiteSettings,
   defaultSiteSettings,
   SiteSettings,
+  normalizeExternalUrl,
 } from "@/lib/cms";
 
 export default function IrPage() {
@@ -59,12 +60,13 @@ export default function IrPage() {
       category: useTranslated ? seedMatch.category : c.subCategory || "공시/IR",
       title: useTranslated ? seedMatch.title : c.title,
       source: useTranslated ? seedMatch.source : c.specOrMaterial || "IR 자료실",
-      linkUrl:
+      linkUrl: normalizeExternalUrl(
         c.linkUrl !== undefined
           ? c.linkUrl
           : c.id.startsWith("seed_ir_")
           ? "https://dart.fss.or.kr"
-          : "",
+          : ""
+      ),
     };
   });
 
@@ -128,27 +130,42 @@ export default function IrPage() {
               </thead>
               <tbody className="divide-y divide-slate-200">
                 {displayDisclosures.map((item) => (
-                  <tr key={item.id} className="hover:bg-slate-50">
+                  <tr
+                    key={item.id}
+                    onClick={() => {
+                      if (item.linkUrl) {
+                        window.open(item.linkUrl, "_blank", "noopener,noreferrer");
+                      }
+                    }}
+                    className={`transition-colors ${
+                      item.linkUrl
+                        ? "cursor-pointer hover:bg-blue-50/60 group"
+                        : "hover:bg-slate-50"
+                    }`}
+                  >
                     <td className="px-6 py-4">
                       <span className="inline-block rounded bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700">
                         {item.category}
                       </span>
                     </td>
                     <td className="px-6 py-4 font-semibold text-slate-900">
-                    {item.linkUrl ? (
-                      <a
-                        href={item.linkUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 text-slate-900 hover:text-blue-600 hover:underline transition-colors"
-                      >
-                        <span>{item.title}</span>
-                        <span className="text-xs font-normal text-blue-600">↗</span>
-                      </a>
-                    ) : (
-                      item.title
-                    )}
-                  </td>
+                      {item.linkUrl ? (
+                        <a
+                          href={item.linkUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="inline-flex items-center gap-2 text-slate-900 group-hover:text-blue-600 group-hover:underline transition-colors"
+                        >
+                          <span>{item.title}</span>
+                          <span className="inline-flex items-center rounded bg-blue-50 px-1.5 py-0.5 text-[11px] font-semibold text-blue-600">
+                            새창 ↗
+                          </span>
+                        </a>
+                      ) : (
+                        item.title
+                      )}
+                    </td>
                     <td className="px-6 py-4 text-slate-600">{item.source}</td>
                     <td className="px-6 py-4 text-slate-500">{item.date}</td>
                   </tr>

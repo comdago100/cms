@@ -92,10 +92,35 @@ export interface HomeConfig {
   supportBannerDesc: string;
 }
 
+export interface FacilityTabsConfig {
+  allLabel: string; // 예: "전체 설비"
+  tabs: string[];   // 예: ["가공설비", "주조설비", "검사설비"]
+}
+
 const STORAGE_KEY_PREFIX = "noksan_cms_items_v2_";
 const SETTINGS_KEY_PREFIX = "noksan_site_settings_v2_";
 const INQUIRIES_KEY_PREFIX = "noksan_inquiries_v2_";
 const HOME_CONFIG_KEY_PREFIX = "noksan_home_config_v2_";
+const FACILITY_TABS_KEY_PREFIX = "noksan_facility_tabs_v1_";
+
+export const defaultFacilityTabsConfig: FacilityTabsConfig = {
+  allLabel: "전체 설비",
+  tabs: ["가공설비", "주조설비", "검사설비"],
+};
+
+export function normalizeExternalUrl(raw?: string): string {
+  if (!raw) return "";
+  const trimmed = raw.trim();
+  if (!trimmed) return "";
+  if (
+    trimmed.startsWith("http://") ||
+    trimmed.startsWith("https://") ||
+    trimmed.startsWith("/")
+  ) {
+    return trimmed;
+  }
+  return `https://${trimmed}`;
+}
 
 export const defaultSiteSettings: SiteSettings = {
   name: siteConfig.name,
@@ -257,6 +282,68 @@ export function resetSiteSettings(slug = "noksan"): SiteSettings {
     window.dispatchEvent(new Event("cms-updated"));
   }
   return defaultSiteSettings;
+}
+
+export function getFacilityTabsConfig(slug = "noksan"): FacilityTabsConfig {
+  if (typeof window === "undefined") return defaultFacilityTabsConfig;
+  try {
+    const raw = localStorage.getItem(`${FACILITY_TABS_KEY_PREFIX}${slug}`);
+    if (!raw) return defaultFacilityTabsConfig;
+    const parsed = JSON.parse(raw);
+    return {
+      allLabel: parsed.allLabel || defaultFacilityTabsConfig.allLabel,
+      tabs: Array.isArray(parsed.tabs) && parsed.tabs.length > 0
+        ? parsed.tabs
+        : defaultFacilityTabsConfig.tabs,
+    };
+  } catch {
+    return defaultFacilityTabsConfig;
+  }
+}
+
+export function saveFacilityTabsConfig(slug: string, config: FacilityTabsConfig): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(`${FACILITY_TABS_KEY_PREFIX}${slug}`, JSON.stringify(config));
+  window.dispatchEvent(new Event("cms-updated"));
+}
+
+export function resetFacilityTabsConfig(slug = "noksan"): FacilityTabsConfig {
+  if (typeof window !== "undefined") {
+    localStorage.removeItem(`${FACILITY_TABS_KEY_PREFIX}${slug}`);
+    window.dispatchEvent(new Event("cms-updated"));
+  }
+  return defaultFacilityTabsConfig;
+}
+
+export function renameFacilityTabCategory(
+  slug: string,
+  oldName: string,
+  newName: string
+): void {
+  if (typeof window === "undefined") return;
+  const trimmedNew = newName.trim();
+  if (!trimmedNew || oldName === trimmedNew) return;
+  const current = getLocalItems(slug);
+  const updated = current.map((item) =>
+    item.category === "facilities" && item.subCategory === oldName
+      ? { ...item, subCategory: trimmedNew }
+      : item
+  );
+  saveLocalItems(slug, updated);
+}
+
+export function updateCmsItemLink(
+  slug: string,
+  id: string,
+  rawLinkUrl: string
+): void {
+  if (typeof window === "undefined") return;
+  const normalized = normalizeExternalUrl(rawLinkUrl);
+  const current = getLocalItems(slug);
+  const updated = current.map((item) =>
+    item.id === id ? { ...item, linkUrl: normalized } : item
+  );
+  saveLocalItems(slug, updated);
 }
 
 export const defaultHomeConfig: HomeConfig = {
@@ -601,10 +688,21 @@ export async function createCmsItem(
 
   const newItem: CmsItem = {
     ...input,
+    linkUrl: input.linkUrl !== undefined ? normalizeExternalUrl(input.linkUrl) : undefined,
     id: `local_${Date.now()}`,
     imageUrl,
     createdAt: new Date().toISOString(),
   };
+
+  if (input.category === "facilities" && input.subCategory) {
+    const tabCfg = getFacilityTabsConfig(slug);
+    if (!tabCfg.tabs.includes(input.subCategory)) {
+      saveFacilityTabsConfig(slug, {
+        ...tabCfg,
+        tabs: [...tabCfg.tabs, input.subCategory],
+      });
+    }
+  }
 
   const current = getLocalItems(slug);
   saveLocalItems(slug, [newItem, ...current]);
@@ -622,12 +720,23 @@ export async function updateCmsItem(
     imageUrl = await fileToDataUrl(file);
   }
 
+  if (input.category === "facilities" && input.subCategory) {
+    const tabCfg = getFacilityTabsConfig(slug);
+    if (!tabCfg.tabs.includes(input.subCategory)) {
+      saveFacilityTabsConfig(slug, {
+        ...tabCfg,
+        tabs: [...tabCfg.tabs, input.subCategory],
+      });
+    }
+  }
+
   const current = getLocalItems(slug);
   const updated = current.map((item) =>
     item.id === id
       ? {
           ...item,
           ...input,
+          linkUrl: input.linkUrl !== undefined ? normalizeExternalUrl(input.linkUrl) : item.linkUrl,
           imageUrl: imageUrl || item.imageUrl,
         }
       : item
