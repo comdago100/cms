@@ -630,7 +630,7 @@ export default function AdminClient({ slug }: { slug: string }) {
       : currentTabConfig.pageHref;
 
   return (
-    <div className="min-h-screen bg-slate-100 py-10 px-4 sm:px-6">
+    <div className="min-h-screen bg-slate-100 py-10 px-4 sm:px-6 xl:pr-[350px] 2xl:pr-[370px]">
       <div className="mx-auto max-w-6xl">
         {/* 상단 헤더 배너 */}
         <div className="flex flex-col justify-between gap-4 rounded-2xl bg-slate-900 p-6 text-white sm:flex-row sm:items-center sm:p-8">

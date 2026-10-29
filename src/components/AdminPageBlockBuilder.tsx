@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   PageKey,
   CustomPageBlock,
@@ -11,6 +11,7 @@ import {
   resetCustomPageBlocks,
   SKELETON_SECTIONS_BY_PAGE,
   getHiddenSkeletonSections,
+  saveHiddenSkeletonSections,
   toggleSkeletonSection,
   uploadMediaFileToUrl,
   getAboutConfig,
@@ -113,6 +114,11 @@ export function AdminPageBlockBuilder({
   const [subTabOptions, setSubTabOptions] = useState<{ id: string; label: string }[]>([]);
   const [selectedSubTab, setSelectedSubTab] = useState<string>("ALL");
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [undoStack, setUndoStack] = useState<
+    Array<{ blocks: CustomPageBlock[]; hiddenSkeletonIds: string[]; actionLabel: string }>
+  >([]);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState<boolean>(false);
+  const lastUndoPushTimeRef = useRef<number>(0);
 
   const pageInfo = PAGE_LABELS[page] || { label: page, href: "/" };
 
@@ -137,6 +143,11 @@ export function AdminPageBlockBuilder({
   }, [slug, page]);
 
   useEffect(() => {
+    setUndoStack([]);
+    setHasUnsavedChanges(false);
+  }, [slug, page]);
+
+  useEffect(() => {
     if (activeSubTab !== undefined) {
       setSelectedSubTab(activeSubTab);
     } else {
@@ -154,15 +165,57 @@ export function AdminPageBlockBuilder({
     setTimeout(() => setToastMsg(null), 4000);
   };
 
+  const pushUndoSnapshot = (actionLabel: string, throttle = false) => {
+    const now = Date.now();
+    if (throttle && now - lastUndoPushTimeRef.current < 1200) {
+      lastUndoPushTimeRef.current = now;
+      return;
+    }
+    lastUndoPushTimeRef.current = now;
+    const clonedBlocks: CustomPageBlock[] = JSON.parse(JSON.stringify(blocks));
+    const clonedHidden: string[] = [...hiddenSkeletonIds];
+    setUndoStack((prev) => [
+      ...prev.slice(-29),
+      { blocks: clonedBlocks, hiddenSkeletonIds: clonedHidden, actionLabel },
+    ]);
+  };
+
   const commitPageBlocks = (nextPageBlocks: CustomPageBlock[], message?: string) => {
     setBlocks(nextPageBlocks);
     saveCustomPageBlocks(slug, page, nextPageBlocks);
+    setHasUnsavedChanges(true);
     if (message) notify(message);
   };
 
+  const handleManualSave = () => {
+    saveCustomPageBlocks(slug, page, blocks);
+    saveHiddenSkeletonSections(slug, hiddenSkeletonIds);
+    setHasUnsavedChanges(false);
+    notify(
+      `💾 [${pageInfo.label}] 추가·수정한 기능 블록(${blocks.length}개)과 기본 뼈대 설정이 안전하게 최종 저장되었습니다!`
+    );
+  };
+
+  const handleUndo = () => {
+    if (undoStack.length === 0) {
+      notify("ℹ️ 더 이상 되돌릴 이전 작업 내역이 없습니다.");
+      return;
+    }
+    const previous = undoStack[undoStack.length - 1];
+    const nextStack = undoStack.slice(0, -1);
+    setUndoStack(nextStack);
+    setBlocks(previous.blocks);
+    setHiddenSkeletonIds(previous.hiddenSkeletonIds);
+    saveCustomPageBlocks(slug, page, previous.blocks);
+    saveHiddenSkeletonSections(slug, previous.hiddenSkeletonIds);
+    notify(`↩️ 바로 이전 상태로 되돌렸습니다! (복구됨: ${previous.actionLabel})`);
+  };
+
   const handleToggleSkeleton = (sectionId: string, label: string, currentlyVisible: boolean) => {
+    pushUndoSnapshot(`기본 뼈대 '${label}' ${currentlyVisible ? "제거" : "복구"}`);
     const nextHidden = toggleSkeletonSection(slug, sectionId);
     setHiddenSkeletonIds(nextHidden);
+    setHasUnsavedChanges(true);
     notify(
       currentlyVisible
         ? `🗑️ [${pageInfo.label}] '${label}' 기본 뼈대 섹션이 화면에서 제거(숨김)되었습니다.`
@@ -414,20 +467,32 @@ export function AdminPageBlockBuilder({
         ? "모든 탭 공통"
         : subTabOptions.find((o) => o.id === targetSubTab)?.label || targetSubTab;
 
+    pushUndoSnapshot(`'${BLOCK_TYPE_BADGE[type].label}' 블록 추가`);
     commitPageBlocks(
       [...blocks, newBlock],
-      `✅ [${pageInfo.label} > ${subTabLabel}] 영역에 '${BLOCK_TYPE_BADGE[type].label}' 블록이 추가되었습니다!`
+      `✅ [${pageInfo.label} > ${subTabLabel}] 영역에 '${BLOCK_TYPE_BADGE[type].label}' 블록이 추가되었습니다! (내용 수정 후 '저장하기'를 눌러주세요)`
     );
+
+    setTimeout(() => {
+      const el = document.getElementById(`block-card-${newId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }, 90);
   };
 
   const handleRemoveBlock = (blockId: string) => {
+    const target = blocks.find((b) => b.id === blockId);
+    const label = target ? BLOCK_TYPE_BADGE[target.type]?.label || target.type : "블록";
+    pushUndoSnapshot(`'${label}' 삭제`);
     const next = blocks.filter((b) => b.id !== blockId);
-    commitPageBlocks(next, `🗑️ 선택한 커스텀 블록이 삭제되었습니다.`);
+    commitPageBlocks(next, `🗑️ 선택한 커스텀 블록이 삭제되었습니다. (실수였다면 '↩️ 바로 이전으로 되돌리기'를 누르세요)`);
   };
 
   const handleMoveBlock = (index: number, direction: -1 | 1) => {
     const targetIdx = index + direction;
     if (targetIdx < 0 || targetIdx >= blocks.length) return;
+    pushUndoSnapshot(`블록 #${index + 1} 순서 이동`);
     const copy = [...blocks];
     const temp = copy[index];
     copy[index] = copy[targetIdx];
@@ -436,11 +501,13 @@ export function AdminPageBlockBuilder({
   };
 
   const handleUpdateBlock = (blockId: string, patch: Partial<CustomPageBlock>) => {
+    pushUndoSnapshot("블록 내용 편집", true);
     const next = blocks.map((b) => (b.id === blockId ? { ...b, ...patch } : b));
     commitPageBlocks(next);
   };
 
   const handleApplyGridPreset = (block: CustomPageBlock, preset: ImageGridPreset) => {
+    pushUndoSnapshot(`멀티 이미지 배율 '${GRID_PRESET_SLOTS[preset].label}' 변경`);
     const targetCount = GRID_PRESET_SLOTS[preset].count;
     const currentImages = [...(block.images || [])];
 
@@ -466,11 +533,11 @@ export function AdminPageBlockBuilder({
       currentImages.length = targetCount;
     }
 
-    handleUpdateBlock(block.id, {
-      gridPreset: preset,
-      images: currentImages,
-    });
-    notify(
+    const next = blocks.map((b) =>
+      b.id === block.id ? { ...b, gridPreset: preset, images: currentImages } : b
+    );
+    commitPageBlocks(
+      next,
       `🖼️ 이미지 레이아웃이 '${GRID_PRESET_SLOTS[preset].label}' (${targetCount}장 구성)으로 자동 세팅되었습니다.`
     );
   };
@@ -487,132 +554,426 @@ export function AdminPageBlockBuilder({
 
   const skeletonList = SKELETON_SECTIONS_BY_PAGE[page] || [];
 
+  const visibleBlocks =
+    subTabOptions.length === 0
+      ? blocks
+      : blocks.filter((b) => {
+          const bSub = b.subTab || "ALL";
+          return selectedSubTab === "ALL" ? bSub === "ALL" : bSub === selectedSubTab;
+        });
+
+  const currentTabLabel =
+    selectedSubTab === "ALL"
+      ? "모든 탭 공통"
+      : subTabOptions.find((o) => o.id === selectedSubTab)?.label || selectedSubTab;
+
+  const QUICK_ADD_BUTTONS: Array<{
+    type: CustomBlockType;
+    icon: string;
+    title: string;
+    desc: string;
+    hoverClass: string;
+  }> = [
+    {
+      type: "text_block",
+      icon: "📝",
+      title: "+ 자유 텍스트 블록",
+      desc: "제목·본문·2단 컬럼·강조 인용구",
+      hoverClass: "hover:bg-slate-800 hover:border-slate-600",
+    },
+    {
+      type: "kpi_stats",
+      icon: "📊",
+      title: "+ 주요 경영·재무지표",
+      desc: "투자정보 스타일 핵심 수치 카드",
+      hoverClass: "hover:bg-indigo-600 hover:border-indigo-400",
+    },
+    {
+      type: "link_board",
+      icon: "📋",
+      title: "+ 링크 연동 게시판·공시 표",
+      desc: "클릭 시 외부링크 새 창 이동",
+      hoverClass: "hover:bg-cyan-700 hover:border-cyan-400",
+    },
+    {
+      type: "image_grid",
+      icon: "🖼️",
+      title: "+ 멀티 이미지(1x1~4x1·2x2·3x2)",
+      desc: "원하는 가로 칸수·배율 이미지",
+      hoverClass: "hover:bg-emerald-600 hover:border-emerald-400",
+    },
+    {
+      type: "card_grid",
+      icon: "🗂️",
+      title: "+ 카드# 그룹 섹션",
+      desc: "사진+뱃지+제목+설명 무제한",
+      hoverClass: "hover:bg-purple-600 hover:border-purple-400",
+    },
+    {
+      type: "mini_banner",
+      icon: "📢",
+      title: "+ 작은 배너(띠 배너)",
+      desc: "공지·홍보 문구 및 바로가기",
+      hoverClass: "hover:bg-blue-600 hover:border-blue-400",
+    },
+    {
+      type: "timeline_steps",
+      icon: "⏱️",
+      title: "+ 연혁·공정 타임라인",
+      desc: "STEP별 생산 공정·연혁 안내",
+      hoverClass: "hover:bg-amber-600 hover:border-amber-400",
+    },
+    {
+      type: "faq_accordion",
+      icon: "❓",
+      title: "+ 자주 묻는 질문(FAQ)",
+      desc: "클릭 시 펼쳐지는 Q&A",
+      hoverClass: "hover:bg-teal-600 hover:border-teal-400",
+    },
+    {
+      type: "video_embed",
+      icon: "🎬",
+      title: "+ 유튜브·동영상 플레이어",
+      desc: "유튜브 주소 / MP4 홍보 영상",
+      hoverClass: "hover:bg-rose-600 hover:border-rose-400",
+    },
+  ];
+
   return (
-    <div className="mt-10 border-t-2 border-dashed border-blue-200 pt-8 space-y-8">
-      {toastMsg && (
-        <div className="rounded-xl border border-blue-300 bg-blue-900 px-4 py-3 text-xs font-extrabold text-white shadow-md">
-          {toastMsg}
-        </div>
-      )}
-
-      {/* 1. 기본 뼈대 섹션 표시/제거 컨트롤 패널 */}
-      {skeletonList.length > 0 && (
-        <div className="bg-slate-900 text-white rounded-2xl p-6 shadow-md border border-slate-800">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
-            <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 text-xs font-extrabold mb-2">
-                🧱 [{pageInfo.label}] 기존 기본 뼈대 블록 추가 / 제거(숨김) 관리
-              </div>
-              <h3 className="text-lg font-extrabold text-white">
-                기존 뼈대 섹션도 내 입맛대로 제거(숨김)하거나 다시 추가(복구)할 수 있습니다
-              </h3>
-              <p className="text-xs text-slate-400 mt-1">
-                아예 처음부터 내가 홈페이지를 만드는 것처럼 기존 기본 뼈대를 끄고 아래 커스텀 블록들로만 화면을 구성할 수도 있습니다.
-              </p>
-            </div>
+    <div className="mt-10 border-t-2 border-dashed border-blue-200 pt-8 space-y-6 relative">
+      {/* =====================================================================
+          📌 최우측 빈공간을 활용한 고정(Floating) 리모컨 독 — 휠 스크롤 시 항상 따라옴
+      ===================================================================== */}
+      <aside
+        aria-label="우측 고정 블록 추가 및 뼈대 관리 독"
+        className="hidden xl:flex xl:flex-col fixed right-3 top-20 bottom-4 w-[320px] 2xl:w-[345px] z-40 rounded-2xl border-2 border-slate-800 bg-slate-900/95 backdrop-blur-md text-white shadow-2xl overflow-hidden"
+      >
+        {/* 우측 독 상단 고정: 저장하기 + 바로 이전으로 되돌리기 */}
+        <div className="p-3.5 bg-slate-950 border-b border-slate-800 space-y-2.5 shrink-0">
+          <div className="flex items-center justify-between gap-2">
+            <span className="inline-flex items-center gap-1.5 text-xs font-extrabold text-amber-300">
+              ⚡ [{pageInfo.label}] 우측 따라다니는 리모컨
+            </span>
+            <span
+              className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
+                hasUnsavedChanges
+                  ? "bg-amber-500/20 text-amber-300 border border-amber-400/40"
+                  : "bg-emerald-500/20 text-emerald-300 border border-emerald-400/30"
+              }`}
+            >
+              {hasUnsavedChanges ? "● 변경사항 있음" : "✓ 저장됨"}
+            </span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
-            {skeletonList.map((sec) => {
-              const isHidden = hiddenSkeletonIds.includes(sec.id);
-              const isVisible = !isHidden;
-              return (
-                <div
-                  key={sec.id}
-                  className={`flex items-center justify-between gap-3 p-4 rounded-xl border transition-all ${
-                    isVisible
-                      ? "bg-slate-800/90 border-slate-700"
-                      : "bg-slate-950/70 border-red-900/50 opacity-75"
-                  }`}
-                >
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-                          isVisible ? "bg-emerald-400" : "bg-red-500"
-                        }`}
-                      />
-                      <span
-                        className={`text-sm font-extrabold truncate ${
-                          isVisible ? "text-white" : "text-slate-400 line-through"
-                        }`}
-                      >
-                        {sec.label}
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-400 mt-1 truncate">{sec.desc}</p>
-                  </div>
-
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    {isVisible ? (
-                      <button
-                        type="button"
-                        onClick={() => handleToggleSkeleton(sec.id, sec.label, true)}
-                        className="px-3 py-2 rounded-lg text-xs font-extrabold bg-red-600/20 hover:bg-red-600 text-red-300 hover:text-white border border-red-500/40 transition-colors cursor-pointer"
-                      >
-                        🗑️ 뼈대 제거(숨김)
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => handleToggleSkeleton(sec.id, sec.label, false)}
-                        className="px-3 py-2 rounded-lg text-xs font-extrabold bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm transition-colors cursor-pointer"
-                      >
-                        + 뼈대 다시 추가(복구)
-                      </button>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* 2. 만능 페이지 빌더 팔레트 헤더 */}
-      <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 border border-blue-200 rounded-2xl p-6 shadow-sm">
-        <div className="flex flex-wrap items-start justify-between gap-4 mb-5">
-          <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-600 text-white text-xs font-extrabold mb-2">
-              ✨ [{pageInfo.label}] 만능 홈페이지 블록 빌더 (원하는 기능을 무제한 조립)
-            </div>
-            <h3 className="text-xl font-extrabold text-slate-900">
-              원하는 기능 블록을 클릭해 [{pageInfo.label}] 화면에 마음대로 추가·편집·삭제하세요
-            </h3>
-            <p className="text-sm text-slate-600 mt-1">
-              <strong>자유 텍스트 입력</strong>, 투자정보 스타일의 <strong>주요 경영·재무지표</strong>, 클릭 시 새 창 링크로 이동하는 <strong>공시·자료실 게시판</strong>, <strong>2x1·3x1·4x1·2x2·3x2 멀티 이미지</strong> 등 모든 기능을 블록 단위로 조립할 수 있습니다.
-            </p>
-          </div>
-          {blocks.length > 0 && (
+          <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
-              onClick={() => {
-                if (!confirm("이 페이지에 추가한 커스텀 블록을 모두 비우시겠습니까?")) return;
-                resetCustomPageBlocks(slug, page);
-                setBlocks([]);
-                notify("모든 커스텀 블록이 초기화되었습니다.");
-              }}
-              className="rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-bold text-red-600 hover:bg-red-50 cursor-pointer"
+              onClick={handleManualSave}
+              className="flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-extrabold bg-blue-600 hover:bg-blue-500 text-white shadow-md shadow-blue-950/50 transition-all cursor-pointer ring-2 ring-blue-400/40"
             >
-              커스텀 블록 전체 비우기
+              💾 변경사항 저장
             </button>
+            <button
+              type="button"
+              disabled={undoStack.length === 0}
+              onClick={handleUndo}
+              title={
+                undoStack.length > 0
+                  ? `바로 이전 작업 되돌리기: ${undoStack[undoStack.length - 1].actionLabel}`
+                  : "되돌릴 이전 작업이 없습니다"
+              }
+              className="flex items-center justify-center gap-1 px-2.5 py-2.5 rounded-xl text-xs font-extrabold bg-slate-800 hover:bg-amber-500 hover:text-slate-950 text-amber-300 border border-amber-400/40 disabled:opacity-40 disabled:pointer-events-none transition-all cursor-pointer"
+            >
+              ↩️ 이전 되돌리기 {undoStack.length > 0 ? `(${undoStack.length})` : ""}
+            </button>
+          </div>
+
+          {toastMsg && (
+            <div className="rounded-lg border border-blue-400/50 bg-blue-950/90 px-3 py-2 text-[11px] font-bold text-blue-100 leading-snug">
+              {toastMsg}
+            </div>
           )}
+        </div>
+
+        {/* 우측 독 스크롤 영역: 1) 탭 선택, 2) 원하는 기능 블록 클릭 추가, 3) 기존 뼈대 제거/복구, 4) 블록 빠른 이동 */}
+        <div className="flex-1 overflow-y-auto p-3.5 space-y-5">
+          {/* (1) 하위 탭 대상 선택 */}
+          {subTabOptions.length > 0 && (
+            <div className="rounded-xl bg-slate-800/90 border border-slate-700 p-3">
+              <div className="text-[11px] font-extrabold text-indigo-300 mb-2">
+                📂 블록을 추가·편집할 대상 탭 선택
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => handleChooseSubTab("ALL")}
+                  className={`px-2.5 py-1.5 rounded-lg text-[11px] font-extrabold transition-all cursor-pointer ${
+                    selectedSubTab === "ALL"
+                      ? "bg-blue-600 text-white shadow-xs"
+                      : "bg-slate-900 text-slate-300 hover:bg-slate-700"
+                  }`}
+                >
+                  🌐 공통 ({blocks.filter((b) => !b.subTab || b.subTab === "ALL").length})
+                </button>
+                {subTabOptions.map((opt) => {
+                  const count = blocks.filter((b) => b.subTab === opt.id).length;
+                  const isSelected = selectedSubTab === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => handleChooseSubTab(opt.id)}
+                      className={`px-2.5 py-1.5 rounded-lg text-[11px] font-extrabold transition-all cursor-pointer ${
+                        isSelected
+                          ? "bg-blue-600 text-white shadow-xs ring-1 ring-blue-300"
+                          : "bg-slate-900 text-slate-300 hover:bg-slate-700"
+                      }`}
+                    >
+                      📌 {opt.label} ({count})
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* (2) 원하는 기능 블록 클릭으로 즉시 추가 (스크롤 올릴 필요 없이 여기서 바로 클릭!) */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs font-extrabold text-white">
+                ➕ 원하는 기능 블록 클릭 추가
+              </span>
+              <span className="text-[10px] font-bold text-blue-300">
+                [{currentTabLabel}]에 추가됨
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-400 mb-2.5">
+              휠을 내린 상태에서도 아래 버튼을 누르면 즉시 블록이 추가되고 해당 위치로 이동합니다.
+            </p>
+            <div className="grid grid-cols-1 gap-1.5">
+              {QUICK_ADD_BUTTONS.map((btn) => (
+                <button
+                  key={btn.type}
+                  type="button"
+                  onClick={() => handleAddBlock(btn.type)}
+                  className={`flex items-center gap-2.5 px-3 py-2 rounded-xl bg-slate-800/90 border border-slate-700/90 text-left transition-all cursor-pointer ${btn.hoverClass}`}
+                >
+                  <span className="text-lg shrink-0">{btn.icon}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="text-xs font-extrabold text-white truncate">{btn.title}</div>
+                    <div className="text-[10px] text-slate-300 truncate">{btn.desc}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* (3) 기존 기본 뼈대 제거(숨김) / 복구 관리 */}
+          {skeletonList.length > 0 && (
+            <div className="pt-3 border-t border-slate-800">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-xs font-extrabold text-amber-300">
+                  🧱 기존 기본 뼈대 제거 / 복구 관리
+                </span>
+                <span className="text-[10px] text-slate-400">클릭 즉시 반영</span>
+              </div>
+              <p className="text-[11px] text-slate-400 mb-2.5">
+                기존 기본 뼈대 섹션을 숨기거나 다시 복구할 수 있습니다.
+              </p>
+              <div className="space-y-2">
+                {skeletonList.map((sec) => {
+                  const isHidden = hiddenSkeletonIds.includes(sec.id);
+                  const isVisible = !isHidden;
+                  return (
+                    <div
+                      key={sec.id}
+                      className={`flex items-center justify-between gap-2 p-2.5 rounded-xl border transition-all ${
+                        isVisible
+                          ? "bg-slate-800/80 border-slate-700"
+                          : "bg-slate-950/80 border-red-900/60 opacity-80"
+                      }`}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <span
+                            className={`w-2 h-2 rounded-full shrink-0 ${
+                              isVisible ? "bg-emerald-400" : "bg-red-500"
+                            }`}
+                          />
+                          <span
+                            className={`text-xs font-extrabold truncate ${
+                              isVisible ? "text-white" : "text-slate-400 line-through"
+                            }`}
+                          >
+                            {sec.label}
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-400 truncate mt-0.5">{sec.desc}</p>
+                      </div>
+                      {isVisible ? (
+                        <button
+                          type="button"
+                          onClick={() => handleToggleSkeleton(sec.id, sec.label, true)}
+                          className="px-2.5 py-1.5 rounded-lg text-[11px] font-extrabold bg-red-600/25 hover:bg-red-600 text-red-200 hover:text-white border border-red-500/40 shrink-0 cursor-pointer"
+                        >
+                          🗑️ 제거
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => handleToggleSkeleton(sec.id, sec.label, false)}
+                          className="px-2.5 py-1.5 rounded-lg text-[11px] font-extrabold bg-emerald-600 hover:bg-emerald-500 text-white shrink-0 cursor-pointer"
+                        >
+                          + 복구
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* (4) 현재 추가된 블록 빠른 이동 & 바로 삭제 리스트 */}
+          {visibleBlocks.length > 0 && (
+            <div className="pt-3 border-t border-slate-800">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-extrabold text-slate-200">
+                  📑 추가된 블록 빠른 이동 ({visibleBlocks.length}개)
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!confirm("이 페이지에 추가한 커스텀 블록을 모두 비우시겠습니까?")) return;
+                    pushUndoSnapshot("커스텀 블록 전체 비우기");
+                    resetCustomPageBlocks(slug, page);
+                    setBlocks([]);
+                    notify("🗑️ 모든 커스텀 블록이 비워졌습니다. ('이전 되돌리기'로 복구 가능)");
+                  }}
+                  className="text-[10px] font-bold text-red-400 hover:text-red-300 underline cursor-pointer"
+                >
+                  전체 비우기
+                </button>
+              </div>
+              <div className="space-y-1.5">
+                {visibleBlocks.map((b) => {
+                  const idx = blocks.findIndex((x) => x.id === b.id);
+                  const bInfo = BLOCK_TYPE_BADGE[b.type] || { label: b.type };
+                  return (
+                    <div
+                      key={b.id}
+                      className="flex items-center justify-between gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-800/90 border border-slate-700 text-xs"
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          document
+                            .getElementById(`block-card-${b.id}`)
+                            ?.scrollIntoView({ behavior: "smooth", block: "center" });
+                        }}
+                        className="text-left truncate flex-1 font-bold text-slate-200 hover:text-blue-300 cursor-pointer"
+                      >
+                        #{idx + 1} {b.title || bInfo.label}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveBlock(b.id)}
+                        title="이 블록 삭제"
+                        className="px-1.5 py-0.5 rounded bg-red-600/30 hover:bg-red-600 text-[10px] font-extrabold text-red-200 hover:text-white shrink-0 cursor-pointer"
+                      >
+                        삭제
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      </aside>
+
+      {toastMsg && (
+        <div className="rounded-xl border border-blue-300 bg-blue-900 px-4 py-3 text-xs font-extrabold text-white shadow-md flex flex-wrap items-center justify-between gap-2">
+          <span>{toastMsg}</span>
+          <div className="flex items-center gap-2">
+            {undoStack.length > 0 && (
+              <button
+                type="button"
+                onClick={handleUndo}
+                className="px-2.5 py-1 rounded-lg bg-amber-400 text-slate-950 text-xs font-extrabold hover:bg-amber-300 cursor-pointer"
+              >
+                ↩️ 바로 이전으로 되돌리기
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={handleManualSave}
+              className="px-2.5 py-1 rounded-lg bg-blue-500 text-white text-xs font-extrabold hover:bg-blue-400 cursor-pointer"
+            >
+              💾 저장하기
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 중앙 영역 상단: 저장/되돌리기 액션 바 & 하위 탭 선택 (기존 무거운 패널은 우측 고정 독으로 이동 완료!) */}
+      <div className="bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 border border-blue-200 rounded-2xl p-6 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-600 text-white text-xs font-extrabold mb-1.5">
+              ✨ [{pageInfo.label}] 커스텀 블록 편집 워크스페이스
+            </div>
+            <h3 className="text-lg font-extrabold text-slate-900">
+              최우측 따라다니는 리모컨에서 블록 추가·뼈대 제거를 언제든 클릭하고, 아래에서 세부 내용을 편집하세요
+            </h3>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleManualSave}
+              className="px-4 py-2.5 rounded-xl text-xs font-extrabold bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-all cursor-pointer"
+            >
+              💾 변경사항 저장하기
+            </button>
+            <button
+              type="button"
+              disabled={undoStack.length === 0}
+              onClick={handleUndo}
+              className="px-3.5 py-2.5 rounded-xl text-xs font-extrabold bg-amber-500 hover:bg-amber-600 text-slate-950 disabled:opacity-40 disabled:pointer-events-none shadow-sm transition-all cursor-pointer"
+            >
+              ↩️ 바로 이전으로 되돌리기 {undoStack.length > 0 ? `(${undoStack.length})` : ""}
+            </button>
+            {blocks.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (!confirm("이 페이지에 추가한 커스텀 블록을 모두 비우시겠습니까?")) return;
+                  pushUndoSnapshot("커스텀 블록 전체 비우기");
+                  resetCustomPageBlocks(slug, page);
+                  setBlocks([]);
+                  notify("모든 커스텀 블록이 초기화되었습니다. ('이전으로 되돌리기'로 복구 가능)");
+                }}
+                className="rounded-xl border border-red-200 bg-white px-3 py-2.5 text-xs font-bold text-red-600 hover:bg-red-50 cursor-pointer"
+              >
+                전체 비우기
+              </button>
+            )}
+          </div>
         </div>
 
         {/* 하위 탭(예: 회사소개 탭들, 설비/제품/기술 탭들) 별도 선택 바 */}
         {subTabOptions.length > 0 && (
-          <div className="mb-5 rounded-xl border border-indigo-200 bg-white p-4 shadow-2xs">
+          <div className="mt-4 rounded-xl border border-indigo-200 bg-white p-4 shadow-2xs">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
               <span className="text-xs font-extrabold text-indigo-950">
-                📂 어느 탭 안에 블록을 추가·수정하시겠습니까? (각 탭별로 별도 추가·수정이 가능합니다)
+                📂 어느 탭 안에 블록을 추가·수정하시겠습니까? (우측 고정 리모컨에서도 언제든 전환 가능)
               </span>
               <span className="text-[11px] font-bold text-indigo-600">
                 현재 선택:{" "}
                 {selectedSubTab === "ALL"
                   ? "🌐 모든 탭 공통 노출"
-                  : `📌 [${
-                      subTabOptions.find((o) => o.id === selectedSubTab)?.label || selectedSubTab
-                    }] 탭 전용`}
+                  : `📌 [${currentTabLabel}] 탭 전용`}
               </span>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -649,153 +1010,56 @@ export function AdminPageBlockBuilder({
           </div>
         )}
 
-        {/* 블록 추가 버튼 그리드 (9종) */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
-          <button
-            type="button"
-            onClick={() => handleAddBlock("text_block")}
-            className="flex items-center gap-3 p-3.5 bg-white hover:bg-slate-900 hover:text-white text-slate-900 border border-slate-300 rounded-xl text-left transition-all shadow-sm group cursor-pointer"
-          >
-            <span className="text-2xl">📝</span>
-            <div>
-              <div className="text-sm font-extrabold">+ 자유 텍스트 블록 추가</div>
-              <div className="text-[11px] text-slate-500 group-hover:text-slate-300">
-                제목·본문·2단 컬럼·강조 인용구 입력
-              </div>
+        {/* 좁은 화면(xl 미만) 전용 접이식 블록 추가 & 뼈대 제어 바 */}
+        <details className="xl:hidden mt-4 rounded-xl border border-slate-300 bg-white p-4">
+          <summary className="text-xs font-extrabold text-slate-900 cursor-pointer">
+            ➕ 원하는 기능 블록 추가 및 기존 기본 뼈대 제거/복구 열기 (넓은 화면에서는 최우측에 항상 따라다닙니다)
+          </summary>
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {QUICK_ADD_BUTTONS.map((btn) => (
+              <button
+                key={btn.type}
+                type="button"
+                onClick={() => handleAddBlock(btn.type)}
+                className="flex items-center gap-2.5 p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-900 hover:text-white text-left text-xs font-extrabold cursor-pointer"
+              >
+                <span>{btn.icon}</span>
+                <span>{btn.title}</span>
+              </button>
+            ))}
+          </div>
+          {skeletonList.length > 0 && (
+            <div className="mt-4 pt-3 border-t border-slate-200 space-y-2">
+              <div className="text-xs font-extrabold text-slate-800">🧱 기존 기본 뼈대 제거/복구</div>
+              {skeletonList.map((sec) => {
+                const isHidden = hiddenSkeletonIds.includes(sec.id);
+                const isVisible = !isHidden;
+                return (
+                  <div key={sec.id} className="flex items-center justify-between text-xs p-2 rounded-lg bg-slate-100">
+                    <span className={isVisible ? "font-bold text-slate-900" : "line-through text-slate-400"}>
+                      {sec.label}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleToggleSkeleton(sec.id, sec.label, isVisible)}
+                      className="px-2.5 py-1 rounded bg-slate-900 text-white font-bold cursor-pointer"
+                    >
+                      {isVisible ? "🗑️ 제거(숨김)" : "+ 복구"}
+                    </button>
+                  </div>
+                );
+              })}
             </div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleAddBlock("kpi_stats")}
-            className="flex items-center gap-3 p-3.5 bg-white hover:bg-indigo-600 hover:text-white text-slate-900 border border-indigo-200 rounded-xl text-left transition-all shadow-sm group cursor-pointer"
-          >
-            <span className="text-2xl">📊</span>
-            <div>
-              <div className="text-sm font-extrabold">+ 주요 경영·재무지표 추가</div>
-              <div className="text-[11px] text-slate-500 group-hover:text-indigo-100">
-                투자정보 스타일 핵심 수치·지표 카드
-              </div>
-            </div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleAddBlock("link_board")}
-            className="flex items-center gap-3 p-3.5 bg-white hover:bg-cyan-700 hover:text-white text-slate-900 border border-cyan-200 rounded-xl text-left transition-all shadow-sm group cursor-pointer"
-          >
-            <span className="text-2xl">📋</span>
-            <div>
-              <div className="text-sm font-extrabold">+ 링크 연동 게시판·공시 표 추가</div>
-              <div className="text-[11px] text-slate-500 group-hover:text-cyan-100">
-                클릭 시 DART·뉴스·외부링크 새 창 이동
-              </div>
-            </div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleAddBlock("image_grid")}
-            className="flex items-center gap-3 p-3.5 bg-white hover:bg-emerald-600 hover:text-white text-slate-900 border border-emerald-200 rounded-xl text-left transition-all shadow-sm group cursor-pointer"
-          >
-            <span className="text-2xl">🖼️</span>
-            <div>
-              <div className="text-sm font-extrabold">+ 멀티 이미지(2x1·3x1·2x2·3x2)</div>
-              <div className="text-[11px] text-slate-500 group-hover:text-emerald-100">
-                1x1, 2x1, 3x1, 4x1, 2x2, 3x2 배율 선택
-              </div>
-            </div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleAddBlock("card_grid")}
-            className="flex items-center gap-3 p-3.5 bg-white hover:bg-purple-600 hover:text-white text-slate-900 border border-purple-200 rounded-xl text-left transition-all shadow-sm group cursor-pointer"
-          >
-            <span className="text-2xl">🗂️</span>
-            <div>
-              <div className="text-sm font-extrabold">+ 카드# 그룹 섹션 추가</div>
-              <div className="text-[11px] text-slate-500 group-hover:text-purple-100">
-                사진+뱃지+제목+설명 카드 무제한 추가
-              </div>
-            </div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleAddBlock("mini_banner")}
-            className="flex items-center gap-3 p-3.5 bg-white hover:bg-blue-600 hover:text-white text-slate-900 border border-blue-200 rounded-xl text-left transition-all shadow-sm group cursor-pointer"
-          >
-            <span className="text-2xl">📢</span>
-            <div>
-              <div className="text-sm font-extrabold">+ 작은 배너(띠 배너) 추가</div>
-              <div className="text-[11px] text-slate-500 group-hover:text-blue-100">
-                공지·홍보 문구 및 바로가기 버튼 배너
-              </div>
-            </div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleAddBlock("timeline_steps")}
-            className="flex items-center gap-3 p-3.5 bg-white hover:bg-amber-600 hover:text-white text-slate-900 border border-amber-200 rounded-xl text-left transition-all shadow-sm group cursor-pointer"
-          >
-            <span className="text-2xl">⏱️</span>
-            <div>
-              <div className="text-sm font-extrabold">+ 연혁·공정 타임라인 추가</div>
-              <div className="text-[11px] text-slate-500 group-hover:text-amber-100">
-                STEP별 생산 공정이나 연혁 타임라인
-              </div>
-            </div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleAddBlock("faq_accordion")}
-            className="flex items-center gap-3 p-3.5 bg-white hover:bg-teal-600 hover:text-white text-slate-900 border border-teal-200 rounded-xl text-left transition-all shadow-sm group cursor-pointer"
-          >
-            <span className="text-2xl">❓</span>
-            <div>
-              <div className="text-sm font-extrabold">+ 자주 묻는 질문(FAQ) 추가</div>
-              <div className="text-[11px] text-slate-500 group-hover:text-teal-100">
-                클릭하면 답변이 펼쳐지는 Q&A 아코디언
-              </div>
-            </div>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => handleAddBlock("video_embed")}
-            className="flex items-center gap-3 p-3.5 bg-white hover:bg-rose-600 hover:text-white text-slate-900 border border-rose-200 rounded-xl text-left transition-all shadow-sm group cursor-pointer"
-          >
-            <span className="text-2xl">🎬</span>
-            <div>
-              <div className="text-sm font-extrabold">+ 유튜브·동영상 플레이어 추가</div>
-              <div className="text-[11px] text-slate-500 group-hover:text-rose-100">
-                유튜브 주소 또는 MP4 홍보 영상 삽입
-              </div>
-            </div>
-          </button>
-        </div>
+          )}
+        </details>
 
         {/* 현재 추가된 블록 리스트 */}
         {(() => {
-          const visibleBlocks =
-            subTabOptions.length === 0
-              ? blocks
-              : blocks.filter((b) => {
-                  const bSub = b.subTab || "ALL";
-                  return selectedSubTab === "ALL" ? bSub === "ALL" : bSub === selectedSubTab;
-                });
-
           if (visibleBlocks.length === 0) {
-            const currentTabLabel =
-              selectedSubTab === "ALL"
-                ? "모든 탭 공통"
-                : subTabOptions.find((o) => o.id === selectedSubTab)?.label || selectedSubTab;
             return (
               <div className="mt-6 bg-white/90 border border-dashed border-slate-300 rounded-xl p-8 text-center text-slate-500 text-sm">
-                현재 <strong>[{pageInfo.label} &gt; {currentTabLabel}]</strong> 영역에 추가된 커스텀 블록이 없습니다. 위 9가지 기능 버튼 중 원하는 항목을 눌러 이 탭 안에 블록을 바로 추가해 보세요!
+                현재 <strong>[{pageInfo.label} &gt; {currentTabLabel}]</strong> 영역에 추가된 커스텀 블록이 없습니다.{" "}
+                <strong>최우측 따라다니는 리모컨</strong>에서 원하는 기능 블록을 클릭해 바로 추가해 보세요!
               </div>
             );
           }
@@ -812,8 +1076,9 @@ export function AdminPageBlockBuilder({
 
               return (
                 <div
+                  id={`block-card-${block.id}`}
                   key={block.id}
-                  className={`rounded-2xl border-2 p-6 shadow-sm transition-all bg-white ${badgeInfo.borderClass}`}
+                  className={`rounded-2xl border-2 p-6 shadow-sm transition-all bg-white scroll-mt-24 ${badgeInfo.borderClass}`}
                 >
                   {/* 블록 상단 컨트롤 바 */}
                   <div className="flex flex-wrap items-center justify-between gap-2 pb-4 mb-5 border-b border-slate-200">
@@ -858,7 +1123,22 @@ export function AdminPageBlockBuilder({
                       </select>
                     </div>
 
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={handleManualSave}
+                        className="px-3 py-1.5 rounded-lg text-xs font-extrabold bg-blue-600 text-white hover:bg-blue-700 shadow-xs cursor-pointer"
+                      >
+                        💾 저장하기
+                      </button>
+                      <button
+                        type="button"
+                        disabled={undoStack.length === 0}
+                        onClick={handleUndo}
+                        className="px-2.5 py-1.5 rounded-lg text-xs font-extrabold bg-amber-100 text-amber-900 border border-amber-300 hover:bg-amber-200 disabled:opacity-40 cursor-pointer"
+                      >
+                        ↩️ 되돌리기
+                      </button>
                       <button
                         type="button"
                         disabled={bIdx === 0}
@@ -878,7 +1158,7 @@ export function AdminPageBlockBuilder({
                       <button
                         type="button"
                         onClick={() => handleRemoveBlock(block.id)}
-                        className="px-3 py-1.5 rounded-lg text-xs font-extrabold bg-red-600 text-white hover:bg-red-700 ml-2 shadow-sm cursor-pointer"
+                        className="px-3 py-1.5 rounded-lg text-xs font-extrabold bg-red-600 text-white hover:bg-red-700 ml-1 shadow-sm cursor-pointer"
                       >
                         🗑️ 블록 삭제
                       </button>
