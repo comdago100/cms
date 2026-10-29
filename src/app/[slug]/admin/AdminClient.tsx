@@ -182,8 +182,12 @@ export default function AdminClient({ slug }: { slug: string }) {
             : "";
       }
       setInlineLinks(nextLinks);
-      setFacilityTabsForm(getCategoryTabsConfig(companySlug, activeTab));
+      const tabCfg = getCategoryTabsConfig(companySlug, activeTab);
+      setFacilityTabsForm(tabCfg);
       setNewFacilityTabName("");
+      if (!editingId && tabCfg.tabs.length > 0) {
+        setSubCategory(tabCfg.tabs[0]);
+      }
     } else if (activeTab === "inquiries") {
       setInquiries(getSupportInquiries(companySlug));
     } else if (activeTab === "settings") {
@@ -200,7 +204,10 @@ export default function AdminClient({ slug }: { slug: string }) {
 
   const resetForm = () => {
     setEditingId(null);
-    setSubCategory("");
+    const defaultCat = isCmsCategory(activeTab)
+      ? getCategoryTabsConfig(companySlug, activeTab).tabs[0] || ""
+      : "";
+    setSubCategory(defaultCat);
     setTitle("");
     setSpecOrMaterial("");
     setQtyOrDate("");
@@ -256,9 +263,16 @@ export default function AdminClient({ slug }: { slug: string }) {
 
     setLoading(true);
     try {
+      const resolvedSubCategory =
+        hasSubTabsManager(activeTab)
+          ? facilityTabsForm.tabs.includes(subCategory.trim())
+            ? subCategory.trim()
+            : facilityTabsForm.tabs[0] || "일반"
+          : subCategory.trim() || "일반";
+
       const payload = {
         category: activeTab,
-        subCategory: subCategory.trim() || "일반",
+        subCategory: resolvedSubCategory,
         title: title.trim(),
         specOrMaterial: specOrMaterial.trim(),
         qtyOrDate: qtyOrDate.trim(),
@@ -1637,35 +1651,58 @@ export default function AdminClient({ slug }: { slug: string }) {
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-                      분류 / 카테고리 {hasSubTabsManager(activeTab) && "(상단 탭 선택 또는 직접 입력)"}
+                      {hasSubTabsManager(activeTab)
+                        ? "소속 상단 탭 선택 (어떤 탭에 표시할지 선택)"
+                        : "분류 / 카테고리"}
                     </label>
-                    <input
-                      type="text"
-                      value={subCategory}
-                      onChange={(e) => setSubCategory(e.target.value)}
-                      placeholder={currentTabConfig.subCategoryPlaceholder}
-                      className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 focus:border-blue-600 focus:outline-none"
-                    />
-                    {facilityTabsForm.tabs.length > 0 && (
-                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                        <span className="text-[11px] font-semibold text-slate-500 mr-1">
-                          탭 빠른 선택:
-                        </span>
-                        {facilityTabsForm.tabs.map((tabName) => (
-                          <button
-                            key={tabName}
-                            type="button"
-                            onClick={() => setSubCategory(tabName)}
-                            className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer ${
-                              subCategory === tabName
-                                ? "bg-blue-600 text-white"
-                                : "border border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200"
-                            }`}
-                          >
-                            {tabName}
-                          </button>
-                        ))}
-                      </div>
+                    {hasSubTabsManager(activeTab) ? (
+                      <>
+                        <select
+                          value={
+                            facilityTabsForm.tabs.includes(subCategory)
+                              ? subCategory
+                              : facilityTabsForm.tabs[0] || ""
+                          }
+                          onChange={(e) => setSubCategory(e.target.value)}
+                          className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm font-semibold text-slate-900 focus:border-blue-600 focus:outline-none"
+                        >
+                          {facilityTabsForm.tabs.map((tabName, idx) => (
+                            <option key={tabName} value={tabName}>
+                              {idx + 1}. {tabName}
+                            </option>
+                          ))}
+                        </select>
+                        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                          {facilityTabsForm.tabs.map((tabName, idx) => {
+                            const active =
+                              (facilityTabsForm.tabs.includes(subCategory)
+                                ? subCategory
+                                : facilityTabsForm.tabs[0]) === tabName;
+                            return (
+                              <button
+                                key={tabName}
+                                type="button"
+                                onClick={() => setSubCategory(tabName)}
+                                className={`rounded-md px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer ${
+                                  active
+                                    ? "bg-blue-600 text-white"
+                                    : "border border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200"
+                                }`}
+                              >
+                                {idx + 1}. {tabName}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </>
+                    ) : (
+                      <input
+                        type="text"
+                        value={subCategory}
+                        onChange={(e) => setSubCategory(e.target.value)}
+                        placeholder={currentTabConfig.subCategoryPlaceholder}
+                        className="w-full rounded-lg border border-slate-300 px-3.5 py-2.5 text-sm text-slate-900 focus:border-blue-600 focus:outline-none"
+                      />
                     )}
                   </div>
 

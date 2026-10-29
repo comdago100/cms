@@ -39,7 +39,11 @@ export default function FacilitiesPage() {
 
     const useTranslated = locale !== "KR" && seedMatch;
     const name = useTranslated ? seedMatch.name : c.title;
-    const category = useTranslated ? seedMatch.category : c.subCategory || "가공설비";
+    const validKrCat =
+      c.subCategory && tabsConfig.tabs.includes(c.subCategory)
+        ? c.subCategory
+        : tabsConfig.tabs[0] || "가공설비";
+    const category = useTranslated ? seedMatch.category : validKrCat;
     const spec = useTranslated ? seedMatch.spec : c.specOrMaterial || "-";
     const qty = useTranslated ? seedMatch.qty : c.qtyOrDate || "1대";
     const maker = useTranslated ? seedMatch.maker : c.maker || "-";
@@ -68,18 +72,13 @@ export default function FacilitiesPage() {
     return map[krName]?.[locale] || krName;
   };
 
-  // 관리자가 설정한 탭 순서 + 설비 항목에 존재하는 추가 탭 병합
+  // 관리자가 설정한 상단 탭 목록만 표시
   const baseCategories =
     locale === "KR"
       ? tabsConfig.tabs
       : tabsConfig.tabs.map((tabName) => translateTabName(tabName));
 
-  const categories = [
-    "ALL",
-    ...Array.from(
-      new Set([...baseCategories, ...displayItems.map((i) => i.category)])
-    ),
-  ];
+  const categories = ["ALL", ...baseCategories];
 
   const filteredItems =
     selectedCategory === "ALL"

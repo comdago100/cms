@@ -101,8 +101,8 @@ const STORAGE_KEY_PREFIX = "noksan_cms_items_v2_";
 const SETTINGS_KEY_PREFIX = "noksan_site_settings_v2_";
 const INQUIRIES_KEY_PREFIX = "noksan_inquiries_v2_";
 const HOME_CONFIG_KEY_PREFIX = "noksan_home_config_v2_";
-const FACILITY_TABS_KEY_PREFIX = "noksan_facility_tabs_v1_";
-const CATEGORY_TABS_KEY_PREFIX = "noksan_category_tabs_v1_";
+const FACILITY_TABS_KEY_PREFIX = "noksan_facility_tabs_v2_";
+const CATEGORY_TABS_KEY_PREFIX = "noksan_category_tabs_v2_";
 
 export const defaultFacilityTabsConfig: FacilityTabsConfig = {
   allLabel: "전체 설비",
@@ -789,21 +789,6 @@ export async function createCmsItem(
     createdAt: new Date().toISOString(),
   };
 
-  if (
-    (input.category === "facilities" ||
-      input.category === "products" ||
-      input.category === "technology") &&
-    input.subCategory
-  ) {
-    const tabCfg = getCategoryTabsConfig(slug, input.category);
-    if (!tabCfg.tabs.includes(input.subCategory)) {
-      saveCategoryTabsConfig(slug, input.category, {
-        ...tabCfg,
-        tabs: [...tabCfg.tabs, input.subCategory],
-      });
-    }
-  }
-
   const current = getLocalItems(slug);
   saveLocalItems(slug, [newItem, ...current]);
   return newItem;
@@ -818,21 +803,6 @@ export async function updateCmsItem(
   let imageUrl = input.imageUrl || "";
   if (file) {
     imageUrl = await fileToDataUrl(file);
-  }
-
-  if (
-    (input.category === "facilities" ||
-      input.category === "products" ||
-      input.category === "technology") &&
-    input.subCategory
-  ) {
-    const tabCfg = getCategoryTabsConfig(slug, input.category);
-    if (!tabCfg.tabs.includes(input.subCategory)) {
-      saveCategoryTabsConfig(slug, input.category, {
-        ...tabCfg,
-        tabs: [...tabCfg.tabs, input.subCategory],
-      });
-    }
   }
 
   const current = getLocalItems(slug);

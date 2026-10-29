@@ -40,7 +40,11 @@ export default function TechnologyPage() {
 
     const useTranslated = locale !== "KR" && seedMatch;
     const title = useTranslated ? seedMatch.title : c.title;
-    const category = useTranslated ? seedMatch.category : c.subCategory || "품질·환경 경영인증";
+    const validKrCat =
+      c.subCategory && tabsConfig.tabs.includes(c.subCategory)
+        ? c.subCategory
+        : tabsConfig.tabs[0] || "품질·환경 경영인증";
+    const category = useTranslated ? seedMatch.category : validKrCat;
     const issuer = useTranslated ? seedMatch.issuer : c.specOrMaterial || "-";
     const date = useTranslated ? seedMatch.date : c.qtyOrDate || "-";
     const desc = useTranslated ? seedMatch.desc : c.description || "";
@@ -61,14 +65,9 @@ export default function TechnologyPage() {
   const baseCategories =
     locale === "KR"
       ? tabsConfig.tabs
-      : Array.from(new Set(displayItems.map((i) => i.category)));
+      : Array.from(new Set(t.technology.items.map((i) => i.category)));
 
-  const categories = [
-    "ALL",
-    ...Array.from(
-      new Set([...baseCategories, ...displayItems.map((i) => i.category)])
-    ),
-  ];
+  const categories = ["ALL", ...baseCategories];
 
   const filteredItems =
     selectedCategory === "ALL"

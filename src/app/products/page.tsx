@@ -40,7 +40,11 @@ export default function ProductsPage() {
 
     const useTranslated = locale !== "KR" && seedMatch;
     const name = useTranslated ? seedMatch.name : c.title;
-    const category = useTranslated ? seedMatch.category : c.subCategory || "주문제작(OEM)";
+    const validKrCat =
+      c.subCategory && tabsConfig.tabs.includes(c.subCategory)
+        ? c.subCategory
+        : tabsConfig.tabs[0] || "선박·해양 부품";
+    const category = useTranslated ? seedMatch.category : validKrCat;
     const material = useTranslated ? seedMatch.material : c.specOrMaterial || "고객사 지정 재질";
     const desc = useTranslated ? seedMatch.desc : c.description || "";
     const imgSrc =
@@ -59,14 +63,9 @@ export default function ProductsPage() {
   const baseCategories =
     locale === "KR"
       ? tabsConfig.tabs
-      : Array.from(new Set(displayProducts.map((i) => i.category)));
+      : Array.from(new Set(t.products.items.map((i) => i.category)));
 
-  const categories = [
-    "ALL",
-    ...Array.from(
-      new Set([...baseCategories, ...displayProducts.map((i) => i.category)])
-    ),
-  ];
+  const categories = ["ALL", ...baseCategories];
 
   const filteredProducts =
     selectedCategory === "ALL"
