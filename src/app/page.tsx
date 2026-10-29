@@ -10,6 +10,7 @@ import {
   getSiteSettings,
   defaultSiteSettings,
   SiteSettings,
+  getHiddenSkeletonSections,
 } from "@/lib/cms";
 import { ImageLightbox } from "@/components/ImageLightbox";
 import { CustomPageBlocks } from "@/components/CustomPageBlocks";
@@ -18,6 +19,7 @@ export default function HomePage() {
   const { locale, t } = useLanguage();
   const [homeConfig, setHomeConfig] = useState<HomeConfig>(defaultHomeConfig);
   const [settings, setSettings] = useState<SiteSettings>(defaultSiteSettings);
+  const [hiddenSections, setHiddenSections] = useState<string[]>([]);
   const [currentSlideIdx, setCurrentSlideIdx] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [zoomImage, setZoomImage] = useState<{ src: string; alt: string; caption?: string } | null>(
@@ -28,6 +30,7 @@ export default function HomePage() {
     const load = () => {
       setHomeConfig(getHomeConfig("noksan"));
       setSettings(getSiteSettings("noksan"));
+      setHiddenSections(getHiddenSkeletonSections("noksan"));
     };
     load();
     window.addEventListener("cms-updated", load);
@@ -82,6 +85,7 @@ export default function HomePage() {
   return (
     <div>
       {/* 1. 멀티 슬라이드 히어로 배너 섹션 (영상 / 이미지 / 기본 배경 지원) */}
+      {!hiddenSections.includes("home_hero") && (
       <section
         className="relative overflow-hidden bg-slate-950 text-white min-h-[480px] sm:min-h-[540px] flex items-center"
         onMouseEnter={() => setIsPaused(true)}
@@ -206,11 +210,13 @@ export default function HomePage() {
           )}
         </div>
       </section>
+      )}
 
       {/* 상단 커스텀 블록 (작은 배너 · 카드# · 이미지) */}
       <CustomPageBlocks page="home" position="top" />
 
       {/* 2. 핵심 사업 분야 섹션 */}
+      {!hiddenSections.includes("home_cores") && (
       <section className="py-16 sm:py-20">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
           <div className="text-center">
@@ -261,9 +267,11 @@ export default function HomePage() {
           </div>
         </div>
       </section>
+      )}
 
       {/* 3. 하단 바로가기 작은 배너 섹션 (관리자에서 자유롭게 추가/삭제/문구 컨트롤 가능) */}
-      {(() => {
+      {!hiddenSections.includes("home_mini_banners") &&
+      (() => {
         const activeMiniBanners = (
           homeConfig.miniBanners && homeConfig.miniBanners.length > 0
             ? homeConfig.miniBanners

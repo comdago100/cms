@@ -9,6 +9,7 @@ import {
   getFacilityTabsConfig,
   defaultFacilityTabsConfig,
   FacilityTabsConfig,
+  getHiddenSkeletonSections,
 } from "@/lib/cms";
 import { ImageLightbox } from "@/components/ImageLightbox";
 import { CustomPageBlocks } from "@/components/CustomPageBlocks";
@@ -18,6 +19,7 @@ export default function FacilitiesPage() {
   const [cmsFacilities, setCmsFacilities] = useState<CmsItem[]>([]);
   const [tabsConfig, setTabsConfig] = useState<FacilityTabsConfig>(defaultFacilityTabsConfig);
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
+  const [hiddenSections, setHiddenSections] = useState<string[]>([]);
   const [zoomImage, setZoomImage] = useState<{ src: string; alt: string; caption?: string } | null>(
     null
   );
@@ -26,6 +28,7 @@ export default function FacilitiesPage() {
     const load = () => {
       fetchCmsItems("noksan", "facilities").then(setCmsFacilities);
       setTabsConfig(getFacilityTabsConfig("noksan"));
+      setHiddenSections(getHiddenSkeletonSections("noksan"));
     };
     load();
     window.addEventListener("cms-updated", load);
@@ -122,6 +125,7 @@ export default function FacilitiesPage() {
       </section>
 
       {/* 서브 탭 네비게이션 (회사소개 페이지와 통일된 상단 탭 바) */}
+      {!hiddenSections.includes("fac_subtabs") && (
       <div className="sticky top-16 z-40 border-b border-slate-200 bg-white shadow-2xs">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
           <div className="flex overflow-x-auto no-scrollbar">
@@ -148,19 +152,22 @@ export default function FacilitiesPage() {
           </div>
         </div>
       </div>
+      )}
 
       {/* 상단 커스텀 블록 (작은 배너 · 카드# · 이미지) */}
       <CustomPageBlocks page="facilities" position="top" />
 
+      {(!hiddenSections.includes("fac_cards") || !hiddenSections.includes("fac_table")) && (
       <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
         {/* 1. 설비 이미지 포토 카드 그리드 (클릭 시 라이트박스 확대) */}
-        {filteredItems.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-slate-300 bg-white py-16 text-center text-sm text-slate-500">
-            해당 탭({selectedCategory})에 등록된 설비 항목이 없습니다.
-          </div>
-        ) : (
-          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {filteredItems.map((item) => (
+        {!hiddenSections.includes("fac_cards") && (
+          filteredItems.length === 0 ? (
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-white py-16 text-center text-sm text-slate-500">
+              해당 탭({selectedCategory})에 등록된 설비 항목이 없습니다.
+            </div>
+          ) : (
+            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+              {filteredItems.map((item) => (
             <div
               key={item.id}
               className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs transition-shadow hover:shadow-md flex flex-col justify-between"
@@ -226,9 +233,11 @@ export default function FacilitiesPage() {
             </div>
           ))}
         </div>
+          )
         )}
 
         {/* 2. 한눈에 보는 전체 보유설비 총괄표 */}
+        {!hiddenSections.includes("fac_table") && (
         <div className="mt-14">
           <h2 className="text-lg font-bold text-slate-900 mb-4">
             📋 {t.facilities.title} ({filteredItems.length})
@@ -258,7 +267,9 @@ export default function FacilitiesPage() {
             </table>
           </div>
         </div>
+        )}
       </div>
+      )}
 
       {/* 하단 커스텀 블록 (작은 배너 · 카드# · 이미지) */}
       <CustomPageBlocks page="facilities" position="bottom" />

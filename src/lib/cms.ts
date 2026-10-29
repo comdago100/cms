@@ -113,7 +113,19 @@ export type PageKey =
   | "ir"
   | "support";
 
-export type CustomBlockType = "mini_banner" | "card_grid" | "image_box";
+export type CustomBlockType =
+  | "text_block"
+  | "kpi_stats"
+  | "link_board"
+  | "image_grid"
+  | "mini_banner"
+  | "card_grid"
+  | "image_box"
+  | "timeline_steps"
+  | "faq_accordion"
+  | "video_embed";
+
+export type ImageGridPreset = "1x1" | "2x1" | "3x1" | "4x1" | "2x2" | "3x2";
 
 export interface CustomCardItem {
   id: string;
@@ -124,12 +136,50 @@ export interface CustomCardItem {
   linkUrl?: string;
 }
 
+export interface CustomKpiStatItem {
+  id: string;
+  label: string;
+  value: string;
+  note: string;
+  color?: "blue" | "emerald" | "indigo" | "slate";
+}
+
+export interface CustomBoardRowItem {
+  id: string;
+  category: string;
+  title: string;
+  source: string;
+  date: string;
+  linkUrl: string;
+}
+
+export interface CustomImageGridItem {
+  id: string;
+  url: string;
+  title?: string;
+  caption?: string;
+  linkUrl?: string;
+}
+
+export interface CustomTimelineStepItem {
+  id: string;
+  stepOrYear: string;
+  title: string;
+  desc: string;
+}
+
+export interface CustomFaqItem {
+  id: string;
+  q: string;
+  a: string;
+}
+
 export interface CustomPageBlock {
   id: string;
   page: PageKey;
   position: "top" | "bottom";
   type: CustomBlockType;
-  bannerTheme?: "blue" | "dark" | "light";
+  bannerTheme?: "blue" | "dark" | "light" | "transparent";
   badge?: string;
   title: string;
   subtitle?: string;
@@ -137,8 +187,76 @@ export interface CustomPageBlock {
   btnHref?: string;
   btnNewTab?: boolean;
   imageUrl?: string;
+  // 텍스트 블록 전용
+  textAlign?: "left" | "center" | "two_col";
+  calloutText?: string;
+  // 카드# 그룹 전용
+  gridCols?: 2 | 3 | 4;
   cards?: CustomCardItem[];
+  // 주요 경영·재무지표(KPI) 전용
+  stats?: CustomKpiStatItem[];
+  // 링크 연동 게시판 전용
+  boardHeaders?: {
+    col1: string;
+    col2: string;
+    col3: string;
+    col4: string;
+  };
+  boardRows?: CustomBoardRowItem[];
+  // 멀티 이미지 그리드(2x1, 3x1, 4x1, 2x2, 3x2) 전용
+  gridPreset?: ImageGridPreset;
+  imageAspect?: "video" | "square" | "wide" | "auto";
+  images?: CustomImageGridItem[];
+  // 타임라인/공정 스텝 전용
+  steps?: CustomTimelineStepItem[];
+  // FAQ 아코디언 전용
+  faqs?: CustomFaqItem[];
+  // 동영상/유튜브 전용
+  videoUrl?: string;
 }
+
+export interface SkeletonSectionDef {
+  id: string;
+  label: string;
+  desc: string;
+}
+
+export const SKELETON_SECTIONS_BY_PAGE: Record<PageKey, SkeletonSectionDef[]> = {
+  home: [
+    { id: "home_hero", label: "메인 히어로 배너 슬라이드", desc: "상단 영상/이미지 멀티 배너 영역" },
+    { id: "home_cores", label: "핵심 사업 분야 카드 섹션", desc: "주물·정밀가공·품질보증 카드 영역" },
+    { id: "home_mini_banners", label: "하단 바로가기 작은 배너 섹션", desc: "설비현황·견적문의 하단 배너 영역" },
+  ],
+  about: [
+    { id: "about_subtabs", label: "회사소개 기본 뼈대 전체", desc: "CEO인사말·개요·비전·연혁·오시는길 전체 영역" },
+    { id: "about_tab_greeting", label: "탭 1: CEO 인사말", desc: "대표이사 인사말 탭" },
+    { id: "about_tab_overview", label: "탭 2: 회사개요", desc: "기업 정보 및 핵심 수치 4종 탭" },
+    { id: "about_tab_vision", label: "탭 3: 비전·핵심가치", desc: "VISION 2030 및 3대 핵심가치 탭" },
+    { id: "about_tab_history", label: "탭 4: 기업연혁", desc: "창립 이래 주요 연혁 타임라인 탭" },
+    { id: "about_tab_location", label: "탭 5: 오시는 길", desc: "구글 지도 및 교통편 안내 탭" },
+  ],
+  facilities: [
+    { id: "fac_subtabs", label: "상단 설비 분류 탭 바", desc: "전체설비·가공·주조·검사 탭 네비게이션" },
+    { id: "fac_cards", label: "기본 설비 사진 카드 그리드", desc: "보유 설비 이미지 카드 목록" },
+    { id: "fac_table", label: "하단 전체 보유설비 총괄표", desc: "설비명·규격·수량·제조사 요약 표" },
+  ],
+  products: [
+    { id: "prod_subtabs", label: "상단 제품 분류 탭 바", desc: "전체제품·선박·중장비 등 탭 네비게이션" },
+    { id: "prod_cards", label: "기본 제품 사진 카드 그리드", desc: "주요 생산 제품 이미지 카드 목록" },
+  ],
+  technology: [
+    { id: "tech_subtabs", label: "상단 기술·인증 분류 탭 바", desc: "전체인증·ISO·특허·선급 탭 네비게이션" },
+    { id: "tech_cards", label: "기본 인증서·특허 카드 그리드", desc: "인증서 및 특허 이미지 카드 목록" },
+  ],
+  ir: [
+    { id: "ir_highlights", label: "기본 주요 재무 하이라이트 (3대 지표)", desc: "매출액·영업이익률·신용등급 기본 카드" },
+    { id: "ir_board", label: "기본 공시 및 IR 자료실 게시판", desc: "DART 공시 및 주주총회 목록 표" },
+  ],
+  support: [
+    { id: "sup_contact", label: "좌측 연락처·소재지 안내 박스", desc: "대표전화·팩스·이메일·영업시간 안내" },
+    { id: "sup_form", label: "우측 온라인 견적·상담 문의 폼", desc: "고객 문의 접수 양식" },
+  ],
+};
 
 export interface FacilityTabsConfig {
   allLabel: string; // 예: "전체 설비"
@@ -152,6 +270,7 @@ const HOME_CONFIG_KEY_PREFIX = "noksan_home_config_v2_";
 const FACILITY_TABS_KEY_PREFIX = "noksan_facility_tabs_v2_";
 const CATEGORY_TABS_KEY_PREFIX = "noksan_category_tabs_v2_";
 const CUSTOM_BLOCKS_KEY_PREFIX = "noksan_custom_blocks_v1_";
+const HIDDEN_SKELETON_KEY_PREFIX = "noksan_hidden_skeleton_v1_";
 
 export const defaultFacilityTabsConfig: FacilityTabsConfig = {
   allLabel: "전체 설비",
@@ -668,6 +787,42 @@ export function saveCustomPageBlocks(
 
 export function resetCustomPageBlocks(slug: string, page: PageKey): void {
   saveCustomPageBlocks(slug, page, []);
+}
+
+export function getHiddenSkeletonSections(slug = "noksan"): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(`${HIDDEN_SKELETON_KEY_PREFIX}${slug}`);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveHiddenSkeletonSections(
+  slug: string,
+  hiddenIds: string[]
+): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(
+    `${HIDDEN_SKELETON_KEY_PREFIX}${slug}`,
+    JSON.stringify(hiddenIds)
+  );
+  window.dispatchEvent(new Event("cms-updated"));
+}
+
+export function toggleSkeletonSection(
+  slug: string,
+  sectionId: string
+): string[] {
+  const current = getHiddenSkeletonSections(slug);
+  const next = current.includes(sectionId)
+    ? current.filter((id) => id !== sectionId)
+    : [...current, sectionId];
+  saveHiddenSkeletonSections(slug, next);
+  return next;
 }
 
 export async function uploadMediaFileToUrl(slug: string, file: File): Promise<string> {

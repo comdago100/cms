@@ -3,7 +3,12 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useLanguage } from "@/context/LanguageContext";
-import { getSiteSettings, defaultSiteSettings, SiteSettings } from "@/lib/cms";
+import {
+  getSiteSettings,
+  defaultSiteSettings,
+  SiteSettings,
+  getHiddenSkeletonSections,
+} from "@/lib/cms";
 import { CustomPageBlocks } from "@/components/CustomPageBlocks";
 
 type AboutTab = "greeting" | "overview" | "vision" | "history" | "location";
@@ -379,12 +384,15 @@ export default function AboutPage() {
   const [activeTab, setActiveTab] = useState<AboutTab>("greeting");
   const [settings, setSettings] = useState<SiteSettings>(defaultSiteSettings);
   const [mapQuery, setMapQuery] = useState<string>(defaultSiteSettings.address);
+  const [hiddenSections, setHiddenSections] = useState<string[]>([]);
 
   useEffect(() => {
     const load = () => {
       const s = getSiteSettings("noksan");
       setSettings(s);
       setMapQuery(s.address);
+      const hidden = getHiddenSkeletonSections("noksan");
+      setHiddenSections(hidden);
     };
     load();
     window.addEventListener("cms-updated", load);
@@ -392,6 +400,10 @@ export default function AboutPage() {
   }, []);
 
   const c = aboutTabsContent[locale];
+  const visibleTabs = c.tabs.filter((tab) => !hiddenSections.includes(`about_tab_${tab.id}`));
+  const effectiveTab = visibleTabs.some((tItem) => tItem.id === activeTab)
+    ? activeTab
+    : visibleTabs[0]?.id || null;
 
   const companyName = locale === "KR" ? settings.name : t.company.name;
   const ceoName = locale === "KR" ? settings.ceo : t.company.ceo;
@@ -424,40 +436,43 @@ export default function AboutPage() {
       </section>
 
       {/* 서브 탭 네비게이션 */}
-      <div className="sticky top-16 z-40 border-b border-slate-200 bg-white shadow-2xs">
-        <div className="mx-auto max-w-6xl px-4 sm:px-6">
-          <div className="flex overflow-x-auto no-scrollbar">
-            {c.tabs.map((tab) => {
-              const isSelected = activeTab === tab.id;
-              return (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`relative whitespace-nowrap px-5 py-4 text-sm font-semibold transition-colors cursor-pointer ${
-                    isSelected
-                      ? "text-blue-700"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  {tab.label}
-                  {isSelected && (
-                    <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600" />
-                  )}
-                </button>
-              );
-            })}
+      {!hiddenSections.includes("about_subtabs") && visibleTabs.length > 0 && (
+        <div className="sticky top-16 z-40 border-b border-slate-200 bg-white shadow-2xs">
+          <div className="mx-auto max-w-6xl px-4 sm:px-6">
+            <div className="flex overflow-x-auto no-scrollbar">
+              {visibleTabs.map((tab) => {
+                const isSelected = effectiveTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`relative whitespace-nowrap px-5 py-4 text-sm font-semibold transition-colors cursor-pointer ${
+                      isSelected
+                        ? "text-blue-700"
+                        : "text-slate-600 hover:text-slate-900"
+                    }`}
+                  >
+                    {tab.label}
+                    {isSelected && (
+                      <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* 상단 커스텀 블록 (작은 배너 · 카드# · 이미지) */}
       <CustomPageBlocks page="about" position="top" />
 
       {/* 탭별 본문 컨텐츠 영역 */}
+      {effectiveTab && (
       <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
         {/* 1. CEO 인사말 */}
-        {activeTab === "greeting" && (
+        {effectiveTab === "greeting" && (
           <div className="grid gap-8 lg:grid-cols-12 items-stretch">
             <div className="lg:col-span-5 flex flex-col justify-between rounded-2xl bg-gradient-to-br from-slate-900 via-slate-800 to-blue-950 p-8 text-white shadow-md">
               <div>
@@ -498,7 +513,7 @@ export default function AboutPage() {
         )}
 
         {/* 2. 회사개요 */}
-        {activeTab === "overview" && (
+        {effectiveTab === "overview" && (
           <div className="space-y-8">
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {c.stats.map((stat) => (
@@ -552,7 +567,7 @@ export default function AboutPage() {
         )}
 
         {/* 3. 비전 및 핵심가치 */}
-        {activeTab === "vision" && (
+        {effectiveTab === "vision" && (
           <div className="space-y-8">
             <div className="rounded-2xl bg-slate-900 p-8 text-center text-white sm:p-12">
               <span className="inline-block rounded-full bg-blue-500/20 px-3.5 py-1 text-xs font-bold tracking-wider text-blue-400">
@@ -588,7 +603,7 @@ export default function AboutPage() {
         )}
 
         {/* 4. 기업연혁 */}
-        {activeTab === "history" && (
+        {effectiveTab === "history" && (
           <div className="space-y-8">
             {c.history.map((block) => (
               <div
@@ -619,7 +634,7 @@ export default function AboutPage() {
         )}
 
         {/* 5. 오시는 길 (실시간 구글지도 임베드 + 주소 검색) */}
-        {activeTab === "location" && (
+        {effectiveTab === "location" && (
           <div className="grid gap-8 lg:grid-cols-12">
             {/* 구글 지도 임베드 및 주소 입력 바 */}
             <div className="lg:col-span-7 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs flex flex-col justify-between">
@@ -714,6 +729,7 @@ export default function AboutPage() {
           </div>
         )}
       </div>
+      )}
 
       {/* 하단 커스텀 블록 (작은 배너 · 카드# · 이미지) */}
       <CustomPageBlocks page="about" position="bottom" />

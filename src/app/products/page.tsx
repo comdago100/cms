@@ -9,6 +9,7 @@ import {
   getCategoryTabsConfig,
   defaultCategoryTabsConfig,
   FacilityTabsConfig,
+  getHiddenSkeletonSections,
 } from "@/lib/cms";
 import { ImageLightbox } from "@/components/ImageLightbox";
 import { CustomPageBlocks } from "@/components/CustomPageBlocks";
@@ -20,6 +21,7 @@ export default function ProductsPage() {
     defaultCategoryTabsConfig.products
   );
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
+  const [hiddenSections, setHiddenSections] = useState<string[]>([]);
   const [zoomImage, setZoomImage] = useState<{ src: string; alt: string; caption?: string } | null>(
     null
   );
@@ -28,6 +30,7 @@ export default function ProductsPage() {
     const load = () => {
       fetchCmsItems("noksan", "products").then(setCmsProducts);
       setTabsConfig(getCategoryTabsConfig("noksan", "products"));
+      setHiddenSections(getHiddenSkeletonSections("noksan"));
     };
     load();
     window.addEventListener("cms-updated", load);
@@ -108,6 +111,7 @@ export default function ProductsPage() {
       </section>
 
       {/* 서브 탭 네비게이션 (회사소개·설비현황과 통일된 상단 탭 바) */}
+      {!hiddenSections.includes("prod_subtabs") && (
       <div className="sticky top-16 z-40 border-b border-slate-200 bg-white shadow-2xs">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
           <div className="flex overflow-x-auto no-scrollbar">
@@ -134,10 +138,12 @@ export default function ProductsPage() {
           </div>
         </div>
       </div>
+      )}
 
       {/* 상단 커스텀 블록 (작은 배너 · 카드# · 이미지) */}
       <CustomPageBlocks page="products" position="top" />
 
+      {!hiddenSections.includes("prod_cards") && (
       <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
         {filteredProducts.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-300 bg-white py-16 text-center text-sm text-slate-500">
@@ -192,6 +198,7 @@ export default function ProductsPage() {
           </div>
         )}
       </div>
+      )}
 
       {/* 하단 커스텀 블록 (작은 배너 · 카드# · 이미지) */}
       <CustomPageBlocks page="products" position="bottom" />

@@ -10,6 +10,7 @@ import {
   defaultSiteSettings,
   SiteSettings,
   normalizeExternalUrl,
+  getHiddenSkeletonSections,
 } from "@/lib/cms";
 import { CustomPageBlocks } from "@/components/CustomPageBlocks";
 
@@ -17,11 +18,13 @@ export default function IrPage() {
   const { locale, t } = useLanguage();
   const [cmsIr, setCmsIr] = useState<CmsItem[]>([]);
   const [settings, setSettings] = useState<SiteSettings>(defaultSiteSettings);
+  const [hiddenSections, setHiddenSections] = useState<string[]>([]);
 
   useEffect(() => {
     const load = () => {
       fetchCmsItems("noksan", "ir").then(setCmsIr);
       setSettings(getSiteSettings("noksan"));
+      setHiddenSections(getHiddenSkeletonSections("noksan"));
     };
     load();
     window.addEventListener("cms-updated", load);
@@ -90,8 +93,10 @@ export default function IrPage() {
       {/* 상단 커스텀 블록 (작은 배너 · 카드# · 이미지) */}
       <CustomPageBlocks page="ir" position="top" />
 
+      {(!hiddenSections.includes("ir_highlights") || !hiddenSections.includes("ir_board")) && (
       <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
         {/* 주요 재무 하이라이트 */}
+        {!hiddenSections.includes("ir_highlights") && (
         <section>
           <h2 className="text-xl font-bold text-slate-900">{t.ir.highlightsTitle}</h2>
           <div className="mt-4 grid gap-6 sm:grid-cols-3">
@@ -107,9 +112,11 @@ export default function IrPage() {
             ))}
           </div>
         </section>
+        )}
 
         {/* 공시 및 IR 자료 게시판 */}
-        <section className="mt-12">
+        {!hiddenSections.includes("ir_board") && (
+        <section className={!hiddenSections.includes("ir_highlights") ? "mt-12" : ""}>
           <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-center">
             <h2 className="text-xl font-bold text-slate-900">{t.ir.tableTitle}</h2>
             <a
@@ -178,7 +185,9 @@ export default function IrPage() {
             </table>
           </div>
         </section>
+        )}
       </div>
+      )}
 
       {/* 하단 커스텀 블록 (작은 배너 · 카드# · 이미지) */}
       <CustomPageBlocks page="ir" position="bottom" />

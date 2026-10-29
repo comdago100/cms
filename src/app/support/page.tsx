@@ -8,12 +8,14 @@ import {
   defaultSiteSettings,
   SiteSettings,
   addSupportInquiry,
+  getHiddenSkeletonSections,
 } from "@/lib/cms";
 import { CustomPageBlocks } from "@/components/CustomPageBlocks";
 
 export default function SupportPage() {
   const { locale, t } = useLanguage();
   const [settings, setSettings] = useState<SiteSettings>(defaultSiteSettings);
+  const [hiddenSections, setHiddenSections] = useState<string[]>([]);
 
   // 문의 폼 상태
   const [companyAndName, setCompanyAndName] = useState("");
@@ -23,7 +25,10 @@ export default function SupportPage() {
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    const load = () => setSettings(getSiteSettings("noksan"));
+    const load = () => {
+      setSettings(getSiteSettings("noksan"));
+      setHiddenSections(getHiddenSkeletonSections("noksan"));
+    };
     load();
     window.addEventListener("cms-updated", load);
     return () => window.removeEventListener("cms-updated", load);
@@ -74,9 +79,11 @@ export default function SupportPage() {
       {/* 상단 커스텀 블록 (작은 배너 · 카드# · 이미지) */}
       <CustomPageBlocks page="support" position="top" />
 
+      {(!hiddenSections.includes("sup_contact") || !hiddenSections.includes("sup_form")) && (
       <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
         <div className="grid gap-8 lg:grid-cols-3">
           {/* 연락처 안내 */}
+          {!hiddenSections.includes("sup_contact") && (
           <div className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-xs">
             <div>
               <h2 className="text-lg font-bold text-slate-900">{t.support.contactTitle}</h2>
@@ -105,9 +112,15 @@ export default function SupportPage() {
               </div>
             </dl>
           </div>
+          )}
 
           {/* 온라인 문의 폼 */}
-          <div className="lg:col-span-2 rounded-2xl border border-slate-200 bg-white p-6 shadow-xs sm:p-8">
+          {!hiddenSections.includes("sup_form") && (
+          <div
+            className={`${
+              hiddenSections.includes("sup_contact") ? "lg:col-span-3" : "lg:col-span-2"
+            } rounded-2xl border border-slate-200 bg-white p-6 shadow-xs sm:p-8`}
+          >
             <h2 className="text-lg font-bold text-slate-900">{t.support.formTitle}</h2>
             <form onSubmit={handleSubmit} className="mt-6 space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
@@ -188,8 +201,10 @@ export default function SupportPage() {
               </button>
             </form>
           </div>
+          )}
         </div>
       </div>
+      )}
 
       {/* 하단 커스텀 블록 (작은 배너 · 카드# · 이미지) */}
       <CustomPageBlocks page="support" position="bottom" />
