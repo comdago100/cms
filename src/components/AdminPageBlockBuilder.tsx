@@ -937,7 +937,12 @@ export function AdminPageBlockBuilder({ slug, page }: AdminPageBlockBuilderProps
                         </button>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                      <div
+                        className="grid gap-3"
+                        style={{
+                          gridTemplateColumns: `repeat(${block.gridCols || 3}, minmax(0, 1fr))`,
+                        }}
+                      >
                         {(block.stats || []).map((item, idx) => (
                           <div
                             key={item.id}
@@ -1374,110 +1379,141 @@ export function AdminPageBlockBuilder({ slug, page }: AdminPageBlockBuilderProps
                         </button>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {(block.images || []).map((img, iIdx) => (
+                      {(() => {
+                        const preset = block.gridPreset || "2x1";
+                        const colCount =
+                          preset === "1x1"
+                            ? 1
+                            : preset === "2x1" || preset === "2x2"
+                            ? 2
+                            : preset === "4x1"
+                            ? 4
+                            : 3;
+                        const previewHeightClass =
+                          preset === "1x1"
+                            ? "h-64 sm:h-80"
+                            : preset === "2x1" || preset === "2x2"
+                            ? "h-48 sm:h-56"
+                            : preset === "4x1"
+                            ? "h-32 sm:h-36"
+                            : "h-40 sm:h-44";
+
+                        return (
                           <div
-                            key={img.id}
-                            className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2.5"
+                            className="grid gap-3"
+                            style={{
+                              gridTemplateColumns: `repeat(${colCount}, minmax(0, 1fr))`,
+                            }}
                           >
-                            <div className="flex items-center justify-between">
-                              <span className="text-xs font-extrabold text-emerald-800">
-                                이미지 슬롯 #{iIdx + 1}
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const next = (block.images || []).filter((x) => x.id !== img.id);
-                                  handleUpdateBlock(block.id, { images: next });
-                                }}
-                                className="text-xs font-bold text-red-600 hover:underline cursor-pointer"
+                            {(block.images || []).map((img, iIdx) => (
+                              <div
+                                key={img.id}
+                                className="min-w-0 bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2"
                               >
-                                삭제
-                              </button>
-                            </div>
-
-                            {img.url && (
-                              <div className="h-32 bg-white rounded-lg overflow-hidden border border-slate-200">
-                                <img
-                                  src={img.url}
-                                  alt={img.title || ""}
-                                  className="w-full h-full object-cover"
-                                />
-                              </div>
-                            )}
-
-                            <div className="flex gap-1.5">
-                              <input
-                                type="text"
-                                value={img.url}
-                                onChange={(e) => {
-                                  const next = (block.images || []).map((x) =>
-                                    x.id === img.id ? { ...x, url: e.target.value } : x
-                                  );
-                                  handleUpdateBlock(block.id, { images: next });
-                                }}
-                                placeholder="이미지 URL 또는 우측 파일찾기"
-                                className="flex-1 px-2.5 py-1.5 rounded border border-slate-300 text-xs bg-white"
-                              />
-                              <label className="px-2.5 py-1.5 bg-slate-800 text-white rounded text-xs font-bold cursor-pointer hover:bg-slate-700 shrink-0">
-                                파일찾기
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  className="hidden"
-                                  onChange={(e) =>
-                                    handleFileChange(e, (uploadedUrl) => {
-                                      const next = (block.images || []).map((x) =>
-                                        x.id === img.id ? { ...x, url: uploadedUrl } : x
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-extrabold text-emerald-800 truncate">
+                                    슬롯 #{iIdx + 1} ({preset})
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const next = (block.images || []).filter(
+                                        (x) => x.id !== img.id
                                       );
                                       handleUpdateBlock(block.id, { images: next });
-                                    })
-                                  }
+                                    }}
+                                    className="text-xs font-bold text-red-600 hover:underline cursor-pointer shrink-0"
+                                  >
+                                    삭제
+                                  </button>
+                                </div>
+
+                                {img.url && (
+                                  <div
+                                    className={`${previewHeightClass} w-full bg-white rounded-lg overflow-hidden border border-slate-200`}
+                                  >
+                                    <img
+                                      src={img.url}
+                                      alt={img.title || ""}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  </div>
+                                )}
+
+                                <div className="flex gap-1">
+                                  <input
+                                    type="text"
+                                    value={img.url}
+                                    onChange={(e) => {
+                                      const next = (block.images || []).map((x) =>
+                                        x.id === img.id ? { ...x, url: e.target.value } : x
+                                      );
+                                      handleUpdateBlock(block.id, { images: next });
+                                    }}
+                                    placeholder="이미지 URL"
+                                    className="min-w-0 flex-1 px-2 py-1.5 rounded border border-slate-300 text-xs bg-white"
+                                  />
+                                  <label className="px-2 py-1.5 bg-slate-800 text-white rounded text-[11px] font-bold cursor-pointer hover:bg-slate-700 shrink-0">
+                                    파일찾기
+                                    <input
+                                      type="file"
+                                      accept="image/*"
+                                      className="hidden"
+                                      onChange={(e) =>
+                                        handleFileChange(e, (uploadedUrl) => {
+                                          const next = (block.images || []).map((x) =>
+                                            x.id === img.id ? { ...x, url: uploadedUrl } : x
+                                          );
+                                          handleUpdateBlock(block.id, { images: next });
+                                        })
+                                      }
+                                    />
+                                  </label>
+                                </div>
+
+                                <input
+                                  type="text"
+                                  value={img.title || ""}
+                                  onChange={(e) => {
+                                    const next = (block.images || []).map((x) =>
+                                      x.id === img.id ? { ...x, title: e.target.value } : x
+                                    );
+                                    handleUpdateBlock(block.id, { images: next });
+                                  }}
+                                  placeholder="이미지 제목 (선택)"
+                                  className="w-full px-2 py-1.5 rounded border border-slate-300 text-xs font-bold bg-white"
                                 />
-                              </label>
-                            </div>
 
-                            <input
-                              type="text"
-                              value={img.title || ""}
-                              onChange={(e) => {
-                                const next = (block.images || []).map((x) =>
-                                  x.id === img.id ? { ...x, title: e.target.value } : x
-                                );
-                                handleUpdateBlock(block.id, { images: next });
-                              }}
-                              placeholder="이미지 제목 (선택)"
-                              className="w-full px-2.5 py-1.5 rounded border border-slate-300 text-xs font-bold bg-white"
-                            />
+                                <input
+                                  type="text"
+                                  value={img.caption || ""}
+                                  onChange={(e) => {
+                                    const next = (block.images || []).map((x) =>
+                                      x.id === img.id ? { ...x, caption: e.target.value } : x
+                                    );
+                                    handleUpdateBlock(block.id, { images: next });
+                                  }}
+                                  placeholder="하단 캡션 설명 (선택)"
+                                  className="w-full px-2 py-1.5 rounded border border-slate-300 text-xs bg-white"
+                                />
 
-                            <input
-                              type="text"
-                              value={img.caption || ""}
-                              onChange={(e) => {
-                                const next = (block.images || []).map((x) =>
-                                  x.id === img.id ? { ...x, caption: e.target.value } : x
-                                );
-                                handleUpdateBlock(block.id, { images: next });
-                              }}
-                              placeholder="하단 캡션 설명 (선택)"
-                              className="w-full px-2.5 py-1.5 rounded border border-slate-300 text-xs bg-white"
-                            />
-
-                            <input
-                              type="text"
-                              value={img.linkUrl || ""}
-                              onChange={(e) => {
-                                const next = (block.images || []).map((x) =>
-                                  x.id === img.id ? { ...x, linkUrl: e.target.value } : x
-                                );
-                                handleUpdateBlock(block.id, { images: next });
-                              }}
-                              placeholder="클릭 시 이동 링크 (비워두면 클릭 시 확대)"
-                              className="w-full px-2.5 py-1.5 rounded border border-slate-300 text-xs bg-white"
-                            />
+                                <input
+                                  type="text"
+                                  value={img.linkUrl || ""}
+                                  onChange={(e) => {
+                                    const next = (block.images || []).map((x) =>
+                                      x.id === img.id ? { ...x, linkUrl: e.target.value } : x
+                                    );
+                                    handleUpdateBlock(block.id, { images: next });
+                                  }}
+                                  placeholder="클릭 시 이동 링크 (선택)"
+                                  className="w-full px-2 py-1.5 rounded border border-slate-300 text-xs bg-white"
+                                />
+                              </div>
+                            ))}
                           </div>
-                        ))}
-                      </div>
+                        );
+                      })()}
                     </div>
                   )}
 
@@ -1556,7 +1592,12 @@ export function AdminPageBlockBuilder({ slug, page }: AdminPageBlockBuilderProps
                         </button>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div
+                        className="grid gap-4"
+                        style={{
+                          gridTemplateColumns: `repeat(${block.gridCols || 3}, minmax(0, 1fr))`,
+                        }}
+                      >
                         {(block.cards || []).map((card, cIdx) => (
                           <div
                             key={card.id}

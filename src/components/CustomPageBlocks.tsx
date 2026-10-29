@@ -138,12 +138,6 @@ export function CustomPageBlocks({
         if (block.type === "kpi_stats") {
           const stats = block.stats || [];
           const cols = block.gridCols || 3;
-          const gridClass =
-            cols === 2
-              ? "sm:grid-cols-2"
-              : cols === 4
-              ? "sm:grid-cols-2 lg:grid-cols-4"
-              : "sm:grid-cols-3";
 
           return (
             <section key={block.id} className="space-y-4">
@@ -167,7 +161,12 @@ export function CustomPageBlocks({
                 </div>
               )}
 
-              <div className={`grid gap-6 ${gridClass}`}>
+              <div
+                className="grid gap-6"
+                style={{
+                  gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+                }}
+              >
                 {stats.map((st) => {
                   const valColor =
                     st.color === "emerald"
@@ -316,14 +315,14 @@ export function CustomPageBlocks({
         if (block.type === "image_grid") {
           const preset = block.gridPreset || "3x1";
           const images = block.images || [];
-          const gridClass =
+          const colCount =
             preset === "1x1"
-              ? "grid-cols-1"
+              ? 1
               : preset === "2x1" || preset === "2x2"
-              ? "grid-cols-1 sm:grid-cols-2"
+              ? 2
               : preset === "4x1"
-              ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-4"
-              : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3";
+              ? 4
+              : 3;
 
           const aspectClass =
             block.imageAspect === "square"
@@ -331,8 +330,14 @@ export function CustomPageBlocks({
               : block.imageAspect === "wide"
               ? "h-64 sm:h-80"
               : block.imageAspect === "auto"
-              ? "max-h-[540px]"
-              : "aspect-video";
+              ? "max-h-[560px]"
+              : preset === "1x1"
+              ? "h-80 sm:h-[460px]"
+              : preset === "2x1" || preset === "2x2"
+              ? "h-60 sm:h-72"
+              : preset === "4x1"
+              ? "h-44 sm:h-52"
+              : "h-52 sm:h-64";
 
           return (
             <section key={block.id} className="space-y-4">
@@ -356,7 +361,12 @@ export function CustomPageBlocks({
                 </div>
               )}
 
-              <div className={`grid gap-5 ${gridClass}`}>
+              <div
+                className="grid gap-4 sm:gap-5"
+                style={{
+                  gridTemplateColumns: `repeat(${colCount}, minmax(0, 1fr))`,
+                }}
+              >
                 {images.map((img) => {
                   const link = img.linkUrl
                     ? img.linkUrl.startsWith("/")
@@ -514,12 +524,6 @@ export function CustomPageBlocks({
         if (block.type === "card_grid") {
           const cards = block.cards || [];
           const cols = block.gridCols || 3;
-          const gridClass =
-            cols === 2
-              ? "sm:grid-cols-2"
-              : cols === 4
-              ? "sm:grid-cols-2 lg:grid-cols-4"
-              : "sm:grid-cols-2 lg:grid-cols-3";
 
           return (
             <div key={block.id} className="space-y-4">
@@ -541,7 +545,12 @@ export function CustomPageBlocks({
                 </div>
               )}
 
-              <div className={`grid gap-6 ${gridClass}`}>
+              <div
+                className="grid gap-6"
+                style={{
+                  gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
+                }}
+              >
                 {cards.map((card) => {
                   const link = card.linkUrl?.trim()
                     ? card.linkUrl.trim().startsWith("/")
