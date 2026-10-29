@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useLanguage } from "@/context/LanguageContext";
 import { getSiteSettings, defaultSiteSettings, SiteSettings } from "@/lib/cms";
+import { CustomPageBlocks } from "@/components/CustomPageBlocks";
 
 type AboutTab = "greeting" | "overview" | "vision" | "history" | "location";
 
@@ -450,6 +451,9 @@ export default function AboutPage() {
         </div>
       </div>
 
+      {/* 상단 커스텀 블록 (작은 배너 · 카드# · 이미지) */}
+      <CustomPageBlocks page="about" position="top" />
+
       {/* 탭별 본문 컨텐츠 영역 */}
       <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
         {/* 1. CEO 인사말 */}
@@ -710,6 +714,9 @@ export default function AboutPage() {
           </div>
         )}
       </div>
+
+      {/* 하단 커스텀 블록 (작은 배너 · 카드# · 이미지) */}
+      <CustomPageBlocks page="about" position="bottom" />
     </div>
   );
 }

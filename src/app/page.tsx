@@ -12,6 +12,7 @@ import {
   SiteSettings,
 } from "@/lib/cms";
 import { ImageLightbox } from "@/components/ImageLightbox";
+import { CustomPageBlocks } from "@/components/CustomPageBlocks";
 
 export default function HomePage() {
   const { locale, t } = useLanguage();
@@ -206,6 +207,9 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* 상단 커스텀 블록 (작은 배너 · 카드# · 이미지) */}
+      <CustomPageBlocks page="home" position="top" />
+
       {/* 2. 핵심 사업 분야 섹션 */}
       <section className="py-16 sm:py-20">
         <div className="mx-auto max-w-6xl px-4 sm:px-6">
@@ -258,63 +262,74 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* 3. 하단 바로가기 배너 섹션 (관리자에서 노출 여부 및 문구 컨트롤 가능) */}
-      {(homeConfig.showFacilitiesBanner || homeConfig.showSupportBanner) && (
-        <section className="border-t border-slate-200 bg-white py-16">
-          <div className="mx-auto max-w-6xl px-4 sm:px-6">
-            <div className="grid gap-6 md:grid-cols-2">
-              {homeConfig.showFacilitiesBanner && (
-                <div className="flex flex-col justify-between rounded-2xl border border-slate-200 bg-slate-100 p-8">
-                  <div>
-                    <h3 className="text-xl font-bold text-slate-900">
-                      {locale === "KR"
-                        ? homeConfig.facilitiesBannerTitle
-                        : t.home.bannerFacilitiesTitle}
-                    </h3>
-                    <p className="mt-2 text-sm text-slate-600">
-                      {locale === "KR"
-                        ? homeConfig.facilitiesBannerDesc
-                        : t.home.bannerFacilitiesDesc}
-                    </p>
-                  </div>
-                  <Link
-                    href="/facilities"
-                    className="mt-6 inline-flex items-center text-sm font-semibold text-blue-700 hover:underline"
-                  >
-                    {t.home.bannerFacilitiesLink}
-                  </Link>
-                </div>
-              )}
+      {/* 3. 하단 바로가기 작은 배너 섹션 (관리자에서 자유롭게 추가/삭제/문구 컨트롤 가능) */}
+      {(() => {
+        const activeMiniBanners = (
+          homeConfig.miniBanners && homeConfig.miniBanners.length > 0
+            ? homeConfig.miniBanners
+            : defaultHomeConfig.miniBanners || []
+        ).filter((mb) => mb.active !== false);
 
-              {homeConfig.showSupportBanner && (
-                <div className="flex flex-col justify-between rounded-2xl border border-blue-100 bg-blue-50 p-8">
-                  <div>
-                    <h3 className="text-xl font-bold text-slate-900">
-                      {locale === "KR"
-                        ? homeConfig.supportBannerTitle
-                        : t.home.bannerSupportTitle}
-                    </h3>
-                    <p className="mt-2 text-sm text-slate-600">
-                      {locale === "KR"
-                        ? homeConfig.supportBannerDesc
-                        : t.home.bannerSupportDesc}
-                    </p>
-                    <p className="mt-3 text-base font-bold text-blue-800">
-                      {t.home.bannerSupportPhone}: {settings.phone}
-                    </p>
-                  </div>
-                  <Link
-                    href="/support"
-                    className="mt-6 inline-flex items-center text-sm font-semibold text-blue-700 hover:underline"
-                  >
-                    {t.home.bannerSupportLink}
-                  </Link>
-                </div>
-              )}
+        if (activeMiniBanners.length === 0) return null;
+
+        return (
+          <section className="border-t border-slate-200 bg-white py-16">
+            <div className="mx-auto max-w-6xl px-4 sm:px-6">
+              <div className="grid gap-6 md:grid-cols-2">
+                {activeMiniBanners.map((mb) => {
+                  const isBlue = mb.theme === "blue";
+                  const isDark = mb.theme === "dark";
+                  return (
+                    <div
+                      key={mb.id}
+                      className={`flex flex-col justify-between rounded-2xl border p-8 ${
+                        isDark
+                          ? "border-slate-800 bg-slate-900 text-white"
+                          : isBlue
+                          ? "border-blue-100 bg-blue-50 text-slate-900"
+                          : "border-slate-200 bg-slate-100 text-slate-900"
+                      }`}
+                    >
+                      <div>
+                        <h3 className="text-xl font-bold">{mb.title}</h3>
+                        <p
+                          className={`mt-2 text-sm ${
+                            isDark ? "text-slate-300" : "text-slate-600"
+                          }`}
+                        >
+                          {mb.desc}
+                        </p>
+                        {mb.btnHref === "/support" && (
+                          <p
+                            className={`mt-3 text-base font-bold ${
+                              isDark ? "text-blue-300" : "text-blue-800"
+                            }`}
+                          >
+                            {t.home.bannerSupportPhone}: {settings.phone}
+                          </p>
+                        )}
+                      </div>
+                      {mb.btnText && mb.btnHref && (
+                        <Link
+                          href={mb.btnHref}
+                          className={`mt-6 inline-flex items-center text-sm font-semibold hover:underline ${
+                            isDark ? "text-blue-300" : "text-blue-700"
+                          }`}
+                        >
+                          {mb.btnText}
+                        </Link>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        </section>
-      )}
+          </section>
+        );
+      })()}
+
+      {/* 하단 커스텀 블록 (작은 배너 · 카드# · 이미지) */}
+      <CustomPageBlocks page="home" position="bottom" />
 
       {zoomImage && (
         <ImageLightbox

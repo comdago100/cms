@@ -79,6 +79,16 @@ export interface HomeCoreItem {
   imageUrl?: string;
 }
 
+export interface HomeMiniBanner {
+  id: string;
+  title: string;
+  desc: string;
+  btnText: string;
+  btnHref: string;
+  theme: "slate" | "blue" | "dark";
+  active: boolean;
+}
+
 export interface HomeConfig {
   autoPlayIntervalMs: number;
   slides: HomeBannerSlide[];
@@ -91,6 +101,43 @@ export interface HomeConfig {
   showSupportBanner: boolean;
   supportBannerTitle: string;
   supportBannerDesc: string;
+  miniBanners?: HomeMiniBanner[];
+}
+
+export type PageKey =
+  | "home"
+  | "about"
+  | "facilities"
+  | "products"
+  | "technology"
+  | "ir"
+  | "support";
+
+export type CustomBlockType = "mini_banner" | "card_grid" | "image_box";
+
+export interface CustomCardItem {
+  id: string;
+  badge?: string;
+  title: string;
+  desc: string;
+  imageUrl?: string;
+  linkUrl?: string;
+}
+
+export interface CustomPageBlock {
+  id: string;
+  page: PageKey;
+  position: "top" | "bottom";
+  type: CustomBlockType;
+  bannerTheme?: "blue" | "dark" | "light";
+  badge?: string;
+  title: string;
+  subtitle?: string;
+  btnText?: string;
+  btnHref?: string;
+  btnNewTab?: boolean;
+  imageUrl?: string;
+  cards?: CustomCardItem[];
 }
 
 export interface FacilityTabsConfig {
@@ -104,6 +151,7 @@ const INQUIRIES_KEY_PREFIX = "noksan_inquiries_v2_";
 const HOME_CONFIG_KEY_PREFIX = "noksan_home_config_v2_";
 const FACILITY_TABS_KEY_PREFIX = "noksan_facility_tabs_v2_";
 const CATEGORY_TABS_KEY_PREFIX = "noksan_category_tabs_v2_";
+const CUSTOM_BLOCKS_KEY_PREFIX = "noksan_custom_blocks_v1_";
 
 export const defaultFacilityTabsConfig: FacilityTabsConfig = {
   allLabel: "전체 설비",
@@ -532,6 +580,26 @@ export const defaultHomeConfig: HomeConfig = {
   showSupportBanner: true,
   supportBannerTitle: "고객지원 및 견적문의",
   supportBannerDesc: "도면 검토 및 가공 견적 문의를 남겨주시면 신속히 답변드리겠습니다.",
+  miniBanners: [
+    {
+      id: "mb_1",
+      title: "보유 설비 현황",
+      desc: "생산 설비 및 정밀 측정 장비 리스트를 확인하실 수 있습니다.",
+      btnText: "설비현황 자세히 보기 →",
+      btnHref: "/facilities",
+      theme: "slate",
+      active: true,
+    },
+    {
+      id: "mb_2",
+      title: "고객지원 및 견적문의",
+      desc: "도면 검토 및 가공 견적 문의를 남겨주시면 신속히 답변드리겠습니다.",
+      btnText: "온라인 문의하기 →",
+      btnHref: "/support",
+      theme: "blue",
+      active: true,
+    },
+  ],
 };
 
 export function getHomeConfig(slug = "noksan"): HomeConfig {
@@ -545,6 +613,10 @@ export function getHomeConfig(slug = "noksan"): HomeConfig {
       ...parsed,
       slides: Array.isArray(parsed.slides) && parsed.slides.length > 0 ? parsed.slides : defaultHomeConfig.slides,
       cores: Array.isArray(parsed.cores) && parsed.cores.length > 0 ? parsed.cores : defaultHomeConfig.cores,
+      miniBanners:
+        Array.isArray(parsed.miniBanners) && parsed.miniBanners.length > 0
+          ? parsed.miniBanners
+          : defaultHomeConfig.miniBanners,
     };
   } catch {
     return defaultHomeConfig;
@@ -563,6 +635,39 @@ export function resetHomeConfig(slug = "noksan"): HomeConfig {
     window.dispatchEvent(new Event("cms-updated"));
   }
   return defaultHomeConfig;
+}
+
+export function getCustomPageBlocks(
+  slug = "noksan",
+  page?: PageKey
+): CustomPageBlock[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(`${CUSTOM_BLOCKS_KEY_PREFIX}${slug}`);
+    if (!raw) return [];
+    const parsed: CustomPageBlock[] = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return page ? parsed.filter((b) => b.page === page) : parsed;
+  } catch {
+    return [];
+  }
+}
+
+export function saveCustomPageBlocks(
+  slug: string,
+  page: PageKey,
+  pageBlocks: CustomPageBlock[]
+): void {
+  if (typeof window === "undefined") return;
+  const all = getCustomPageBlocks(slug);
+  const others = all.filter((b) => b.page !== page);
+  const merged = [...others, ...pageBlocks];
+  localStorage.setItem(`${CUSTOM_BLOCKS_KEY_PREFIX}${slug}`, JSON.stringify(merged));
+  window.dispatchEvent(new Event("cms-updated"));
+}
+
+export function resetCustomPageBlocks(slug: string, page: PageKey): void {
+  saveCustomPageBlocks(slug, page, []);
 }
 
 export async function uploadMediaFileToUrl(slug: string, file: File): Promise<string> {

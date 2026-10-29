@@ -22,6 +22,8 @@ import {
   HomeConfig,
   HomeBannerSlide,
   HomeCoreItem,
+  HomeMiniBanner,
+  PageKey,
   defaultHomeConfig,
   getHomeConfig,
   saveHomeConfig,
@@ -38,6 +40,7 @@ import {
   updateCmsItemLink,
   normalizeExternalUrl,
 } from "@/lib/cms";
+import { AdminPageBlockBuilder } from "@/components/AdminPageBlockBuilder";
 
 type AdminMainTab = "home" | "settings" | CmsCategory | "inquiries";
 
@@ -548,6 +551,45 @@ export default function AdminClient({ slug }: { slug: string }) {
     nextCores[idx] = nextCores[targetIdx];
     nextCores[targetIdx] = temp;
     setHomeForm({ ...homeForm, cores: nextCores });
+  };
+
+  // 홈 하단 작은 배너 추가/삭제 핸들러
+  const currentMiniBanners =
+    homeForm.miniBanners && homeForm.miniBanners.length > 0
+      ? homeForm.miniBanners
+      : defaultHomeConfig.miniBanners || [];
+
+  const handleAddHomeMiniBanner = () => {
+    const nextNum = currentMiniBanners.length + 1;
+    const newBanner: HomeMiniBanner = {
+      id: `mb_${Date.now()}`,
+      title: `신규 하단 작은 배너 #${nextNum}`,
+      desc: "배너 설명 문구를 입력해 주세요.",
+      btnText: "자세히 보기 →",
+      btnHref: "/support",
+      theme: nextNum % 2 === 0 ? "blue" : "slate",
+      active: true,
+    };
+    setHomeForm({
+      ...homeForm,
+      miniBanners: [...currentMiniBanners, newBanner],
+    });
+  };
+
+  const handleUpdateHomeMiniBanner = (
+    idx: number,
+    patch: Partial<HomeMiniBanner>
+  ) => {
+    const next = currentMiniBanners.map((b, i) =>
+      i === idx ? { ...b, ...patch } : b
+    );
+    setHomeForm({ ...homeForm, miniBanners: next });
+  };
+
+  const handleRemoveHomeMiniBanner = (idx: number) => {
+    if (!confirm(`하단 작은 배너 #${idx + 1} 항목을 삭제하시겠습니까?`)) return;
+    const next = currentMiniBanners.filter((_, i) => i !== idx);
+    setHomeForm({ ...homeForm, miniBanners: next });
   };
 
   const handleToggleMenuVisibility = (href: string) => {
@@ -1222,89 +1264,130 @@ export default function AdminClient({ slug }: { slug: string }) {
               </div>
             </div>
 
-            {/* 3. 홈 하단 바로가기 배너 2종 컨트롤 */}
+            {/* 3. 홈 하단 바로가기 작은 배너 자유 추가·삭제 컨트롤 */}
             <div className="border-t border-slate-200 pt-6 space-y-4">
-              <h3 className="text-sm font-bold text-blue-700">
-                3. 홈 하단 바로가기 배너 2종 (설비현황 / 견적문의) 노출 및 문구 설정
-              </h3>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="rounded-xl border border-slate-200 p-4 space-y-2">
-                  <label className="inline-flex items-center gap-2 text-xs font-bold text-slate-800 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={homeForm.showFacilitiesBanner}
-                      onChange={(e) =>
-                        setHomeForm({
-                          ...homeForm,
-                          showFacilitiesBanner: e.target.checked,
-                        })
-                      }
-                      className="h-4 w-4 rounded text-blue-600"
-                    />
-                    좌측 [보유 설비 현황] 배너 노출
-                  </label>
-                  <input
-                    type="text"
-                    value={homeForm.facilitiesBannerTitle}
-                    onChange={(e) =>
-                      setHomeForm({
-                        ...homeForm,
-                        facilitiesBannerTitle: e.target.value,
-                      })
-                    }
-                    className="w-full rounded border border-slate-300 px-3 py-1.5 text-sm font-bold"
-                  />
-                  <input
-                    type="text"
-                    value={homeForm.facilitiesBannerDesc}
-                    onChange={(e) =>
-                      setHomeForm({
-                        ...homeForm,
-                        facilitiesBannerDesc: e.target.value,
-                      })
-                    }
-                    className="w-full rounded border border-slate-300 px-3 py-1.5 text-xs"
-                  />
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-sm font-bold text-blue-700">
+                    3. 홈 하단 바로가기 작은 배너 관리 (총 {currentMiniBanners.length}개)
+                  </h3>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    설비현황·견적문의 등 홈 화면 하단에 들어가는 작은 배너를 원하는 만큼 추가하거나 삭제할 수 있습니다.
+                  </p>
                 </div>
+                <button
+                  type="button"
+                  onClick={handleAddHomeMiniBanner}
+                  className="rounded-lg bg-slate-900 px-3.5 py-2 text-xs font-bold text-white hover:bg-slate-800 cursor-pointer"
+                >
+                  ➕ 하단 작은 배너 추가
+                </button>
+              </div>
 
-                <div className="rounded-xl border border-slate-200 p-4 space-y-2">
-                  <label className="inline-flex items-center gap-2 text-xs font-bold text-slate-800 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={homeForm.showSupportBanner}
-                      onChange={(e) =>
-                        setHomeForm({
-                          ...homeForm,
-                          showSupportBanner: e.target.checked,
-                        })
-                      }
-                      className="h-4 w-4 rounded text-blue-600"
-                    />
-                    우측 [고객지원 및 견적문의] 배너 노출
-                  </label>
-                  <input
-                    type="text"
-                    value={homeForm.supportBannerTitle}
-                    onChange={(e) =>
-                      setHomeForm({
-                        ...homeForm,
-                        supportBannerTitle: e.target.value,
-                      })
-                    }
-                    className="w-full rounded border border-slate-300 px-3 py-1.5 text-sm font-bold"
-                  />
-                  <input
-                    type="text"
-                    value={homeForm.supportBannerDesc}
-                    onChange={(e) =>
-                      setHomeForm({
-                        ...homeForm,
-                        supportBannerDesc: e.target.value,
-                      })
-                    }
-                    className="w-full rounded border border-slate-300 px-3 py-1.5 text-xs"
-                  />
-                </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                {currentMiniBanners.map((mb, idx) => (
+                  <div
+                    key={mb.id}
+                    className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-2.5"
+                  >
+                    <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                      <label className="inline-flex items-center gap-2 text-xs font-bold text-slate-800 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={mb.active !== false}
+                          onChange={(e) =>
+                            handleUpdateHomeMiniBanner(idx, {
+                              active: e.target.checked,
+                            })
+                          }
+                          className="h-4 w-4 rounded text-blue-600"
+                        />
+                        작은 배너 #{idx + 1} 노출
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={mb.theme}
+                          onChange={(e) =>
+                            handleUpdateHomeMiniBanner(idx, {
+                              theme: e.target.value as "slate" | "blue" | "dark",
+                            })
+                          }
+                          className="rounded border border-slate-300 bg-white px-2 py-0.5 text-[11px] font-semibold"
+                        >
+                          <option value="slate">라이트 그레이</option>
+                          <option value="blue">라이트 블루</option>
+                          <option value="dark">다크 네이비</option>
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveHomeMiniBanner(idx)}
+                          className="rounded bg-red-50 px-2 py-0.5 text-[11px] font-bold text-red-600 hover:bg-red-500 hover:text-white cursor-pointer"
+                        >
+                          삭제
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">
+                        배너 제목
+                      </label>
+                      <input
+                        type="text"
+                        value={mb.title}
+                        onChange={(e) =>
+                          handleUpdateHomeMiniBanner(idx, { title: e.target.value })
+                        }
+                        className="w-full rounded border border-slate-300 bg-white px-3 py-1.5 text-sm font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">
+                        배너 설명
+                      </label>
+                      <input
+                        type="text"
+                        value={mb.desc}
+                        onChange={(e) =>
+                          handleUpdateHomeMiniBanner(idx, { desc: e.target.value })
+                        }
+                        className="w-full rounded border border-slate-300 bg-white px-3 py-1.5 text-xs"
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">
+                          버튼 문구
+                        </label>
+                        <input
+                          type="text"
+                          value={mb.btnText}
+                          onChange={(e) =>
+                            handleUpdateHomeMiniBanner(idx, {
+                              btnText: e.target.value,
+                            })
+                          }
+                          className="w-full rounded border border-slate-300 bg-white px-2.5 py-1 text-xs"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-0.5">
+                          이동 경로 (URL)
+                        </label>
+                        <input
+                          type="text"
+                          value={mb.btnHref}
+                          onChange={(e) =>
+                            handleUpdateHomeMiniBanner(idx, {
+                              btnHref: e.target.value,
+                            })
+                          }
+                          className="w-full rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-mono"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 
@@ -2319,6 +2402,18 @@ export default function AdminClient({ slug }: { slug: string }) {
             </div>
           </div>
         )}
+
+        {/* 모든 메뉴 공통: 내 입맛대로 자유 블록 추가·제거 빌더 (작은 배너 · 카드# · 이미지) */}
+        <AdminPageBlockBuilder
+          slug={companySlug}
+          page={
+            activeTab === "settings"
+              ? "about"
+              : activeTab === "inquiries"
+              ? "support"
+              : (activeTab as PageKey)
+          }
+        />
       </div>
     </div>
   );

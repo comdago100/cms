@@ -11,6 +11,7 @@ import {
   FacilityTabsConfig,
 } from "@/lib/cms";
 import { ImageLightbox } from "@/components/ImageLightbox";
+import { CustomPageBlocks } from "@/components/CustomPageBlocks";
 
 export default function FacilitiesPage() {
   const { locale, t } = useLanguage();
@@ -148,6 +149,9 @@ export default function FacilitiesPage() {
         </div>
       </div>
 
+      {/* 상단 커스텀 블록 (작은 배너 · 카드# · 이미지) */}
+      <CustomPageBlocks page="facilities" position="top" />
+
       <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
         {/* 1. 설비 이미지 포토 카드 그리드 (클릭 시 라이트박스 확대) */}
         {filteredItems.length === 0 ? (
@@ -255,6 +259,9 @@ export default function FacilitiesPage() {
           </div>
         </div>
       </div>
+
+      {/* 하단 커스텀 블록 (작은 배너 · 카드# · 이미지) */}
+      <CustomPageBlocks page="facilities" position="bottom" />
 
       {/* 이미지 클릭 확대 라이트박스 모달 */}
       {zoomImage && (

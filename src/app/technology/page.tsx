@@ -11,6 +11,7 @@ import {
   FacilityTabsConfig,
 } from "@/lib/cms";
 import { ImageLightbox } from "@/components/ImageLightbox";
+import { CustomPageBlocks } from "@/components/CustomPageBlocks";
 
 export default function TechnologyPage() {
   const { locale, t } = useLanguage();
@@ -136,6 +137,9 @@ export default function TechnologyPage() {
         </div>
       </div>
 
+      {/* 상단 커스텀 블록 (작은 배너 · 카드# · 이미지) */}
+      <CustomPageBlocks page="technology" position="top" />
+
       <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
         {filteredItems.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-300 bg-white py-16 text-center text-sm text-slate-500">
@@ -197,6 +201,9 @@ export default function TechnologyPage() {
           </div>
         )}
       </div>
+
+      {/* 하단 커스텀 블록 (작은 배너 · 카드# · 이미지) */}
+      <CustomPageBlocks page="technology" position="bottom" />
 
       {zoomImage && (
         <ImageLightbox

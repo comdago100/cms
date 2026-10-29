@@ -9,6 +9,7 @@ import {
   SiteSettings,
   addSupportInquiry,
 } from "@/lib/cms";
+import { CustomPageBlocks } from "@/components/CustomPageBlocks";
 
 export default function SupportPage() {
   const { locale, t } = useLanguage();
@@ -69,6 +70,9 @@ export default function SupportPage() {
           </p>
         </div>
       </section>
+
+      {/* 상단 커스텀 블록 (작은 배너 · 카드# · 이미지) */}
+      <CustomPageBlocks page="support" position="top" />
 
       <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
         <div className="grid gap-8 lg:grid-cols-3">
@@ -186,6 +190,9 @@ export default function SupportPage() {
           </div>
         </div>
       </div>
+
+      {/* 하단 커스텀 블록 (작은 배너 · 카드# · 이미지) */}
+      <CustomPageBlocks page="support" position="bottom" />
     </div>
   );
 }
