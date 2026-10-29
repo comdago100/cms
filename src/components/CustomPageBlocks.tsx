@@ -7,6 +7,7 @@ import {
   CustomPageBlock,
   getCustomPageBlocks,
   normalizeExternalUrl,
+  triggerBrowserDownload,
 } from "@/lib/cms";
 import { ImageLightbox } from "@/components/ImageLightbox";
 
@@ -271,16 +272,22 @@ export function CustomPageBlocks({
                           ? row.linkUrl
                           : normalizeExternalUrl(row.linkUrl)
                         : "";
+                      const hasAttachment = Boolean(row.attachmentUrl);
                       return (
                         <tr
                           key={row.id}
                           onClick={() => {
-                            if (rowLink) {
+                            if (hasAttachment && row.attachmentUrl) {
+                              triggerBrowserDownload(
+                                row.attachmentUrl,
+                                row.attachmentName || row.title || "첨부파일"
+                              );
+                            } else if (rowLink) {
                               window.open(rowLink, "_blank", "noopener,noreferrer");
                             }
                           }}
                           className={`transition-colors ${
-                            rowLink
+                            hasAttachment || rowLink
                               ? "cursor-pointer hover:bg-blue-50/60 group"
                               : "hover:bg-slate-50"
                           }`}
@@ -291,22 +298,40 @@ export function CustomPageBlocks({
                             </span>
                           </td>
                           <td className="px-6 py-4 font-semibold text-slate-900">
-                            {rowLink ? (
-                              <a
-                                href={rowLink}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                onClick={(e) => e.stopPropagation()}
-                                className="inline-flex items-center gap-2 text-slate-900 group-hover:text-blue-600 group-hover:underline transition-colors"
-                              >
+                            <div className="flex flex-wrap items-center gap-2">
+                              {rowLink ? (
+                                <a
+                                  href={rowLink}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="inline-flex items-center gap-2 text-slate-900 group-hover:text-blue-600 group-hover:underline transition-colors"
+                                >
+                                  <span>{row.title}</span>
+                                  <span className="inline-flex items-center rounded bg-blue-50 px-1.5 py-0.5 text-[11px] font-semibold text-blue-600">
+                                    새창 ↗
+                                  </span>
+                                </a>
+                              ) : (
                                 <span>{row.title}</span>
-                                <span className="inline-flex items-center rounded bg-blue-50 px-1.5 py-0.5 text-[11px] font-semibold text-blue-600">
-                                  새창 ↗
-                                </span>
-                              </a>
-                            ) : (
-                              row.title
-                            )}
+                              )}
+
+                              {hasAttachment && row.attachmentUrl && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    triggerBrowserDownload(
+                                      row.attachmentUrl!,
+                                      row.attachmentName || row.title || "첨부파일"
+                                    );
+                                  }}
+                                  className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-bold text-white hover:bg-emerald-500 shadow-2xs transition-colors cursor-pointer"
+                                >
+                                  📥 {row.attachmentName || "첨부파일 다운로드"}
+                                </button>
+                              )}
+                            </div>
                           </td>
                           <td className="px-6 py-4 text-slate-600">{row.source}</td>
                           <td className="px-6 py-4 text-slate-500">{row.date}</td>
@@ -315,6 +340,81 @@ export function CustomPageBlocks({
                     })}
                   </tbody>
                 </table>
+              </div>
+            </section>
+          );
+        }
+
+        // 3-2) 📥 첨부파일(이력서·참고자료·카탈로그 등) 다운로드 자료실 블록 (file_download)
+        if (block.type === "file_download") {
+          const attachments = block.attachments || [];
+          return (
+            <section key={block.id} className="space-y-4">
+              {(block.title || block.subtitle || block.badge) && (
+                <div>
+                  {block.badge && (
+                    <span className="inline-block rounded bg-emerald-50 px-2.5 py-0.5 text-xs font-bold text-emerald-700 mb-1">
+                      {block.badge}
+                    </span>
+                  )}
+                  {block.title && (
+                    <h3 className="text-xl font-bold text-slate-900">
+                      {block.title}
+                    </h3>
+                  )}
+                  {block.subtitle && (
+                    <p className="mt-1 text-sm text-slate-600">
+                      {block.subtitle}
+                    </p>
+                  )}
+                </div>
+              )}
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                {attachments.map((att) => (
+                  <div
+                    key={att.id}
+                    className="flex flex-col justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-xs transition-all hover:border-blue-300 hover:shadow-md sm:flex-row sm:items-center"
+                  >
+                    <div className="space-y-1.5 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        {att.category && (
+                          <span className="inline-block rounded-md bg-blue-50 px-2.5 py-0.5 text-xs font-extrabold text-blue-700">
+                            {att.category}
+                          </span>
+                        )}
+                        {att.date && (
+                          <span className="text-xs text-slate-400">{att.date}</span>
+                        )}
+                      </div>
+                      <h4 className="text-base font-bold text-slate-900 break-words">
+                        {att.title}
+                      </h4>
+                      {att.desc && (
+                        <p className="text-xs leading-relaxed text-slate-600">
+                          {att.desc}
+                        </p>
+                      )}
+                      <div className="flex flex-wrap items-center gap-2 pt-1 text-xs font-semibold text-slate-500">
+                        <span>📎 {att.fileName || "첨부파일"}</span>
+                        {att.fileSize && <span>({att.fileSize})</span>}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        triggerBrowserDownload(
+                          att.fileUrl,
+                          att.fileName || att.title || "첨부파일"
+                        )
+                      }
+                      className="inline-flex shrink-0 items-center justify-center gap-1.5 rounded-xl bg-blue-600 px-4 py-3 text-xs font-extrabold text-white shadow-xs transition-colors hover:bg-blue-500 cursor-pointer"
+                    >
+                      <span>📥 다운로드</span>
+                    </button>
+                  </div>
+                ))}
               </div>
             </section>
           );
@@ -614,17 +714,33 @@ export function CustomPageBlocks({
                         </div>
                       </div>
 
-                      {link && (
-                        <div className="border-t border-slate-100 bg-slate-50/70 px-6 py-3">
-                          <a
-                            href={link}
-                            target={link.startsWith("/") ? undefined : "_blank"}
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-1 text-xs font-bold text-blue-700 hover:underline"
-                          >
-                            <span>바로가기</span>
-                            <span>↗</span>
-                          </a>
+                      {(link || card.attachmentUrl) && (
+                        <div className="border-t border-slate-100 bg-slate-50/70 px-6 py-3 flex flex-wrap items-center justify-between gap-2">
+                          {link && (
+                            <a
+                              href={link}
+                              target={link.startsWith("/") ? undefined : "_blank"}
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1 text-xs font-bold text-blue-700 hover:underline"
+                            >
+                              <span>바로가기</span>
+                              <span>↗</span>
+                            </a>
+                          )}
+                          {card.attachmentUrl && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                triggerBrowserDownload(
+                                  card.attachmentUrl!,
+                                  card.attachmentName || card.title || "첨부파일"
+                                )
+                              }
+                              className="inline-flex items-center gap-1 rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-blue-500 cursor-pointer"
+                            >
+                              📥 {card.attachmentName || "첨부파일 다운로드"}
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>

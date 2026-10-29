@@ -44,6 +44,13 @@ import {
   getAboutConfig,
   saveAboutConfig,
   resetAboutConfig,
+  SupportConfig,
+  defaultSupportConfig,
+  getSupportConfig,
+  saveSupportConfig,
+  resetSupportConfig,
+  formatFileSize,
+  triggerBrowserDownload,
 } from "@/lib/cms";
 import { AdminPageBlockBuilder } from "@/components/AdminPageBlockBuilder";
 
@@ -139,6 +146,9 @@ export default function AdminClient({ slug }: { slug: string }) {
   const [aboutForm, setAboutForm] = useState<AboutConfig>(defaultAboutConfig);
   const [selectedAboutSubTab, setSelectedAboutSubTab] = useState<string>("greeting");
   const [newAboutTabLabel, setNewAboutTabLabel] = useState<string>("");
+  const [supportForm, setSupportForm] = useState<SupportConfig>(defaultSupportConfig);
+  const [selectedSupportSubTab, setSelectedSupportSubTab] = useState<string>("inquiry");
+  const [newSupportTabLabel, setNewSupportTabLabel] = useState<string>("");
   const [facilityTabsForm, setFacilityTabsForm] = useState<FacilityTabsConfig>(
     defaultFacilityTabsConfig
   );
@@ -176,6 +186,7 @@ export default function AdminClient({ slug }: { slug: string }) {
     setHomeForm(getHomeConfig(companySlug));
     setSettingsForm(getSiteSettings(companySlug));
     setAboutForm(getAboutConfig(companySlug));
+    setSupportForm(getSupportConfig(companySlug));
     setFacilityTabsForm(getCategoryTabsConfig(companySlug, "facilities"));
     setInquiries(getSupportInquiries(companySlug));
   }, [companySlug]);
@@ -213,6 +224,7 @@ export default function AdminClient({ slug }: { slug: string }) {
       }
     } else if (activeTab === "inquiries") {
       setInquiries(getSupportInquiries(companySlug));
+      setSupportForm(getSupportConfig(companySlug));
     } else if (activeTab === "settings") {
       setSettingsForm(getSiteSettings(companySlug));
       setAboutForm(getAboutConfig(companySlug));
@@ -246,9 +258,24 @@ export default function AdminClient({ slug }: { slug: string }) {
     e.preventDefault();
     saveSiteSettings(companySlug, settingsForm);
     saveAboutConfig(companySlug, aboutForm);
+    window.dispatchEvent(new Event("cms-save-all-drafts"));
     alert(
       "회사소개(모든 탭별 상세 내용), 대표 주소(구글지도 연동), 재무지표, 고객지원 연락처 설정이 모두 저장되었습니다!"
     );
+  };
+
+  const handleSaveSupportConfig = () => {
+    saveSupportConfig(companySlug, supportForm);
+    window.dispatchEvent(new Event("cms-save-all-drafts"));
+    alert("고객지원 상단 탭 메뉴 및 첨부파일 다운로드 자료실 설정이 저장되었습니다!");
+  };
+
+  const handleResetSupportConfig = () => {
+    if (!confirm("고객지원 상단 탭 구성과 첨부파일 목록을 초기값으로 되돌리시겠습니까?")) return;
+    const reset = resetSupportConfig(companySlug);
+    setSupportForm(reset);
+    setSelectedSupportSubTab("inquiry");
+    alert("고객지원 탭 및 자료실이 초기 상태로 복원되었습니다.");
   };
 
   const handleResetSettings = () => {
@@ -343,7 +370,7 @@ export default function AdminClient({ slug }: { slug: string }) {
     alert("기본 항목들이 초기 상태로 복원되었습니다.");
   };
 
-  // 설비현황 / 제품소개 / 기술정보 상단 탭 메뉴 관리 핸들러
+  // 설비현황 / 제품소개 / 기술정보 상단 탭 메뉴 관리 핸들러 ('상단 탭 메뉴 설정 저장' 버튼을 눌러야 실제 반영)
   const handleAddFacilityTab = () => {
     if (!isCmsCategory(activeTab)) return;
     const trimmed = newFacilityTabName.trim();
@@ -360,9 +387,8 @@ export default function AdminClient({ slug }: { slug: string }) {
       tabs: [...facilityTabsForm.tabs, trimmed],
     };
     setFacilityTabsForm(updated);
-    saveCategoryTabsConfig(companySlug, activeTab, updated);
     setNewFacilityTabName("");
-    alert(`'${trimmed}' 탭이 상단 탭 메뉴에 추가되었습니다!`);
+    alert(`'${trimmed}' 탭이 목록에 추가되었습니다. 우측 하단의 '💾 상단 탭 메뉴 설정 저장' 버튼을 눌러야 실제 홈페이지에 반영됩니다.`);
   };
 
   const handleUpdateFacilityTabName = (idx: number, newValue: string) => {
@@ -380,7 +406,6 @@ export default function AdminClient({ slug }: { slug: string }) {
     nextTabs[targetIdx] = temp;
     const updated = { ...facilityTabsForm, tabs: nextTabs };
     setFacilityTabsForm(updated);
-    saveCategoryTabsConfig(companySlug, activeTab, updated);
   };
 
   const handleDeleteFacilityTab = (idx: number) => {
@@ -390,11 +415,10 @@ export default function AdminClient({ slug }: { slug: string }) {
       alert("최소 1개 이상의 분류 탭이 필요합니다.");
       return;
     }
-    if (!confirm(`'${tabName}' 탭을 상단 탭 메뉴에서 삭제하시겠습니까?`)) return;
+    if (!confirm(`'${tabName}' 탭을 목록에서 삭제하시겠습니까? (삭제 후 '💾 상단 탭 메뉴 설정 저장'을 눌러주세요)`)) return;
     const nextTabs = facilityTabsForm.tabs.filter((_, i) => i !== idx);
     const updated = { ...facilityTabsForm, tabs: nextTabs };
     setFacilityTabsForm(updated);
-    saveCategoryTabsConfig(companySlug, activeTab, updated);
   };
 
   const handleSaveFacilityTabs = async () => {
@@ -1556,9 +1580,21 @@ export default function AdminClient({ slug }: { slug: string }) {
                       2. 회사소개 내부 탭(CEO 인사말 · 회사개요 · 비전 · 기업연혁 · 오시는 길) 개별 추가·수정 관리
                     </h3>
                     <p className="mt-0.5 text-xs text-slate-600">
-                      회사소개 안의 각 탭 이름을 수정하거나 새 탭을 추가할 수 있으며, 탭을 클릭하면 <strong>그 탭 안의 세부 항목(핵심 수치, 비전 카드, 연혁, 교통편, 전용 이미지/텍스트 블록)</strong>을 별도로 추가·수정할 수 있습니다.
+                      회사소개 안의 각 탭 이름을 수정하거나 새 탭을 추가할 수 있으며, 탭을 클릭하면 <strong>그 탭 안의 세부 항목(핵심 수치, 비전 카드, 연혁, 교통편)</strong>을 별도로 추가·수정한 뒤 <strong>&lsquo;💾 회사소개 탭 설정 저장하기&rsquo;</strong>를 눌러 반영하세요.
                     </p>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      saveSiteSettings(companySlug, settingsForm);
+                      saveAboutConfig(companySlug, aboutForm);
+                      window.dispatchEvent(new Event("cms-save-all-drafts"));
+                      alert("회사소개 탭 구성 및 각 탭 내부 상세 설정이 모두 저장되었습니다!");
+                    }}
+                    className="rounded-xl bg-blue-600 px-4 py-2.5 text-xs font-extrabold text-white shadow-xs hover:bg-blue-500 cursor-pointer shrink-0"
+                  >
+                    💾 회사소개 탭 설정 저장하기
+                  </button>
                 </div>
 
                 {/* 회사소개 상단 탭 목록 (클릭 시 해당 탭 편집 + 이름 수정 + 삭제 + 새 탭 추가) */}
@@ -1586,7 +1622,6 @@ export default function AdminClient({ slug }: { slug: string }) {
                             );
                             const nextCfg = { ...aboutForm, tabs: nextTabs };
                             setAboutForm(nextCfg);
-                            saveAboutConfig(companySlug, nextCfg);
                           }}
                           className={`w-28 rounded px-1.5 py-0.5 text-xs font-extrabold focus:outline-none ${
                             isSelected
@@ -1603,7 +1638,6 @@ export default function AdminClient({ slug }: { slug: string }) {
                               const nextTabs = aboutForm.tabs.filter((tItem) => tItem.id !== tab.id);
                               const nextCfg = { ...aboutForm, tabs: nextTabs };
                               setAboutForm(nextCfg);
-                              saveAboutConfig(companySlug, nextCfg);
                               if (selectedAboutSubTab === tab.id) {
                                 setSelectedAboutSubTab(nextTabs[0]?.id || "greeting");
                               }
@@ -1642,7 +1676,6 @@ export default function AdminClient({ slug }: { slug: string }) {
                         const nextTabs = [...aboutForm.tabs, { id: newTabId, label: trimmed }];
                         const nextCfg = { ...aboutForm, tabs: nextTabs };
                         setAboutForm(nextCfg);
-                        saveAboutConfig(companySlug, nextCfg);
                         setNewAboutTabLabel("");
                         setSelectedAboutSubTab(newTabId);
                       }}
@@ -1727,7 +1760,6 @@ export default function AdminClient({ slug }: { slug: string }) {
                             ];
                             const nextCfg = { ...aboutForm, overviewStats: nextStats };
                             setAboutForm(nextCfg);
-                            saveAboutConfig(companySlug, nextCfg);
                           }}
                           className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-extrabold text-white hover:bg-blue-500 cursor-pointer"
                         >
@@ -1753,7 +1785,6 @@ export default function AdminClient({ slug }: { slug: string }) {
                                   );
                                   const nextCfg = { ...aboutForm, overviewStats: nextStats };
                                   setAboutForm(nextCfg);
-                                  saveAboutConfig(companySlug, nextCfg);
                                 }}
                                 className="text-xs font-bold text-red-600 hover:underline cursor-pointer"
                               >
@@ -1769,7 +1800,6 @@ export default function AdminClient({ slug }: { slug: string }) {
                                 );
                                 const nextCfg = { ...aboutForm, overviewStats: nextStats };
                                 setAboutForm(nextCfg);
-                                saveAboutConfig(companySlug, nextCfg);
                               }}
                               placeholder="라벨 (예: 업력 및 노하우)"
                               className="w-full rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold"
@@ -1783,7 +1813,6 @@ export default function AdminClient({ slug }: { slug: string }) {
                                 );
                                 const nextCfg = { ...aboutForm, overviewStats: nextStats };
                                 setAboutForm(nextCfg);
-                                saveAboutConfig(companySlug, nextCfg);
                               }}
                               placeholder="강조 값 (예: 28년+)"
                               className="w-full rounded border border-blue-300 bg-white px-2.5 py-1 text-sm font-extrabold text-blue-700"
@@ -1797,7 +1826,6 @@ export default function AdminClient({ slug }: { slug: string }) {
                                 );
                                 const nextCfg = { ...aboutForm, overviewStats: nextStats };
                                 setAboutForm(nextCfg);
-                                saveAboutConfig(companySlug, nextCfg);
                               }}
                               placeholder="보조 설명"
                               className="w-full rounded border border-slate-300 bg-white px-2.5 py-1 text-xs"
@@ -1843,7 +1871,6 @@ export default function AdminClient({ slug }: { slug: string }) {
                                 );
                                 const nextCfg = { ...aboutForm, extraOverviewRows: nextRows };
                                 setAboutForm(nextCfg);
-                                saveAboutConfig(companySlug, nextCfg);
                               }}
                               placeholder="항목명 (예: 공장 부지면적)"
                               className="w-48 rounded border border-slate-300 px-3 py-1.5 text-xs font-bold"
@@ -1857,7 +1884,6 @@ export default function AdminClient({ slug }: { slug: string }) {
                                 );
                                 const nextCfg = { ...aboutForm, extraOverviewRows: nextRows };
                                 setAboutForm(nextCfg);
-                                saveAboutConfig(companySlug, nextCfg);
                               }}
                               placeholder="항목 내용 입력"
                               className="flex-1 rounded border border-slate-300 px-3 py-1.5 text-xs"
@@ -1870,7 +1896,6 @@ export default function AdminClient({ slug }: { slug: string }) {
                                 );
                                 const nextCfg = { ...aboutForm, extraOverviewRows: nextRows };
                                 setAboutForm(nextCfg);
-                                saveAboutConfig(companySlug, nextCfg);
                               }}
                               className="rounded bg-red-50 px-2.5 py-1.5 text-xs font-bold text-red-600 hover:bg-red-100 cursor-pointer"
                             >
@@ -1903,7 +1928,6 @@ export default function AdminClient({ slug }: { slug: string }) {
                             ];
                             const nextCfg = { ...aboutForm, visionPillars: nextPillars };
                             setAboutForm(nextCfg);
-                            saveAboutConfig(companySlug, nextCfg);
                           }}
                           className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-extrabold text-white hover:bg-blue-500 cursor-pointer"
                         >
@@ -1977,7 +2001,6 @@ export default function AdminClient({ slug }: { slug: string }) {
                                   );
                                   const nextCfg = { ...aboutForm, visionPillars: nextPillars };
                                   setAboutForm(nextCfg);
-                                  saveAboutConfig(companySlug, nextCfg);
                                 }}
                                 className="w-16 rounded border border-slate-300 bg-white px-2 py-0.5 text-xs font-black text-blue-700"
                               />
@@ -1989,7 +2012,6 @@ export default function AdminClient({ slug }: { slug: string }) {
                                   );
                                   const nextCfg = { ...aboutForm, visionPillars: nextPillars };
                                   setAboutForm(nextCfg);
-                                  saveAboutConfig(companySlug, nextCfg);
                                 }}
                                 className="text-xs font-bold text-red-600 hover:underline cursor-pointer"
                               >
@@ -2005,7 +2027,6 @@ export default function AdminClient({ slug }: { slug: string }) {
                                 );
                                 const nextCfg = { ...aboutForm, visionPillars: nextPillars };
                                 setAboutForm(nextCfg);
-                                saveAboutConfig(companySlug, nextCfg);
                               }}
                               placeholder={`핵심가치 #${pIdx + 1} 제목`}
                               className="w-full rounded border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-bold"
@@ -2019,7 +2040,6 @@ export default function AdminClient({ slug }: { slug: string }) {
                                 );
                                 const nextCfg = { ...aboutForm, visionPillars: nextPillars };
                                 setAboutForm(nextCfg);
-                                saveAboutConfig(companySlug, nextCfg);
                               }}
                               placeholder="핵심가치 설명"
                               className="w-full rounded border border-slate-300 bg-white px-2.5 py-1.5 text-xs"
@@ -2062,7 +2082,6 @@ export default function AdminClient({ slug }: { slug: string }) {
                             ];
                             const nextCfg = { ...aboutForm, historyBlocks: nextBlocks };
                             setAboutForm(nextCfg);
-                            saveAboutConfig(companySlug, nextCfg);
                           }}
                           className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-extrabold text-white hover:bg-blue-500 cursor-pointer"
                         >
@@ -2087,7 +2106,6 @@ export default function AdminClient({ slug }: { slug: string }) {
                                     );
                                     const nextCfg = { ...aboutForm, historyBlocks: nextBlocks };
                                     setAboutForm(nextCfg);
-                                    saveAboutConfig(companySlug, nextCfg);
                                   }}
                                   placeholder="시기 (예: 2020 ~ 현재)"
                                   className="w-40 rounded border border-blue-300 bg-white px-2.5 py-1 text-xs font-extrabold text-blue-700"
@@ -2101,7 +2119,6 @@ export default function AdminClient({ slug }: { slug: string }) {
                                     );
                                     const nextCfg = { ...aboutForm, historyBlocks: nextBlocks };
                                     setAboutForm(nextCfg);
-                                    saveAboutConfig(companySlug, nextCfg);
                                   }}
                                   placeholder="시기 설명 (예: 스마트 정밀가공 고도화기)"
                                   className="flex-1 min-w-[200px] rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold"
@@ -2128,7 +2145,6 @@ export default function AdminClient({ slug }: { slug: string }) {
                                     );
                                     const nextCfg = { ...aboutForm, historyBlocks: nextBlocks };
                                     setAboutForm(nextCfg);
-                                    saveAboutConfig(companySlug, nextCfg);
                                   }}
                                   className="rounded bg-slate-800 px-2.5 py-1 text-xs font-bold text-white hover:bg-slate-700 cursor-pointer"
                                 >
@@ -2142,7 +2158,6 @@ export default function AdminClient({ slug }: { slug: string }) {
                                     );
                                     const nextCfg = { ...aboutForm, historyBlocks: nextBlocks };
                                     setAboutForm(nextCfg);
-                                    saveAboutConfig(companySlug, nextCfg);
                                   }}
                                   className="rounded bg-red-100 px-2.5 py-1 text-xs font-bold text-red-700 hover:bg-red-200 cursor-pointer"
                                 >
@@ -2172,7 +2187,6 @@ export default function AdminClient({ slug }: { slug: string }) {
                                       );
                                       const nextCfg = { ...aboutForm, historyBlocks: nextBlocks };
                                       setAboutForm(nextCfg);
-                                      saveAboutConfig(companySlug, nextCfg);
                                     }}
                                     placeholder="2025. 11"
                                     className="w-28 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-mono font-bold"
@@ -2195,7 +2209,6 @@ export default function AdminClient({ slug }: { slug: string }) {
                                       );
                                       const nextCfg = { ...aboutForm, historyBlocks: nextBlocks };
                                       setAboutForm(nextCfg);
-                                      saveAboutConfig(companySlug, nextCfg);
                                     }}
                                     placeholder="연혁 상세 내용"
                                     className="flex-1 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs"
@@ -2215,7 +2228,6 @@ export default function AdminClient({ slug }: { slug: string }) {
                                       );
                                       const nextCfg = { ...aboutForm, historyBlocks: nextBlocks };
                                       setAboutForm(nextCfg);
-                                      saveAboutConfig(companySlug, nextCfg);
                                     }}
                                     className="rounded bg-white border border-slate-200 px-2 py-1 text-xs font-bold text-red-600 hover:bg-red-50 cursor-pointer"
                                   >
@@ -2255,7 +2267,6 @@ export default function AdminClient({ slug }: { slug: string }) {
                             ];
                             const nextCfg = { ...aboutForm, directions: nextDirs };
                             setAboutForm(nextCfg);
-                            saveAboutConfig(companySlug, nextCfg);
                           }}
                           className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-extrabold text-white hover:bg-blue-500 cursor-pointer"
                         >
@@ -2279,7 +2290,6 @@ export default function AdminClient({ slug }: { slug: string }) {
                                   );
                                   const nextCfg = { ...aboutForm, directions: nextDirs };
                                   setAboutForm(nextCfg);
-                                  saveAboutConfig(companySlug, nextCfg);
                                 }}
                                 placeholder="교통편 제목 (예: 승용차·화물차 이용 시)"
                                 className="flex-1 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-blue-700"
@@ -2292,7 +2302,6 @@ export default function AdminClient({ slug }: { slug: string }) {
                                   );
                                   const nextCfg = { ...aboutForm, directions: nextDirs };
                                   setAboutForm(nextCfg);
-                                  saveAboutConfig(companySlug, nextCfg);
                                 }}
                                 className="rounded bg-red-50 px-2.5 py-1 text-xs font-bold text-red-600 hover:bg-red-100 cursor-pointer"
                               >
@@ -2308,7 +2317,6 @@ export default function AdminClient({ slug }: { slug: string }) {
                                 );
                                 const nextCfg = { ...aboutForm, directions: nextDirs };
                                 setAboutForm(nextCfg);
-                                saveAboutConfig(companySlug, nextCfg);
                               }}
                               placeholder="상세 경로 안내"
                               className="w-full rounded border border-slate-300 bg-white px-2.5 py-1.5 text-xs"
@@ -3045,9 +3053,325 @@ export default function AdminClient({ slug }: { slug: string }) {
           </>
         )}
 
-        {/* 3) 고객지원 (온라인 문의 접수 내역 및 연락처 관리) 탭 */}
+        {/* 3) 고객지원 (상단 탭 추가·수정 + 첨부파일 다운로드 자료실 + 온라인 문의 접수 내역) 탭 */}
         {activeTab === "inquiries" && (
           <div className="mt-6 space-y-6">
+            {/* (A) 고객지원 상단 탭 메뉴 관리 & 첨부파일(이력서·참고자료) 업로드 관리 */}
+            <div className="rounded-2xl border border-blue-200 bg-white p-6 shadow-xs sm:p-8 space-y-6">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
+                <div>
+                  <span className="inline-block rounded-full bg-blue-600 px-3 py-0.5 text-[11px] font-extrabold text-white">
+                    고객지원 상단 탭 추가 · 이력서/참고자료 다운로드 연동
+                  </span>
+                  <h2 className="mt-1 text-lg font-extrabold text-slate-900">
+                    🗂️ 고객지원 상단 탭 메뉴 관리 (탭 추가 · 이름 수정 · 삭제) 및 첨부파일 자료실
+                  </h2>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    고객지원 페이지 상단 탭(예: 온라인 견적·상담 문의, 자료실·양식 다운로드 등)을 자유롭게 추가·수정하고, 방문자가 다운로드할 수 있는 <strong>이력서 양식·참고자료 첨부파일</strong>을 등록한 뒤 <strong>&lsquo;💾 고객지원 설정 저장하기&rsquo;</strong>를 눌러주세요.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleResetSupportConfig}
+                    className="rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                  >
+                    기본값 초기화
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveSupportConfig}
+                    className="rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-extrabold text-white shadow-sm hover:bg-blue-500 cursor-pointer"
+                  >
+                    💾 고객지원 설정 저장하기
+                  </button>
+                </div>
+              </div>
+
+              {/* 고객지원 상단 탭 목록 (클릭 시 해당 탭 선택 + 이름 수정 + 삭제 + 새 탭 추가) */}
+              <div className="rounded-xl border border-blue-100 bg-blue-50/40 p-4 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs font-extrabold text-slate-800">
+                    📌 고객지원 상단 탭 목록 ({supportForm.tabs.length}개) — 탭을 클릭하면 해당 탭 전용 내용을 편집할 수 있습니다
+                  </span>
+                  <span className="text-[11px] font-bold text-blue-700">
+                    현재 선택된 탭: [{supportForm.tabs.find((t) => t.id === selectedSupportSubTab)?.label || selectedSupportSubTab}]
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  {supportForm.tabs.map((tab, tIdx) => {
+                    const isSelected = selectedSupportSubTab === tab.id;
+                    return (
+                      <div
+                        key={tab.id}
+                        onClick={() => setSelectedSupportSubTab(tab.id)}
+                        className={`flex items-center gap-1.5 rounded-xl border px-3 py-2 transition-all cursor-pointer ${
+                          isSelected
+                            ? "border-blue-600 bg-blue-600 text-white shadow-sm ring-2 ring-blue-200"
+                            : "border-slate-200 bg-white text-slate-800 hover:border-blue-300"
+                        }`}
+                      >
+                        <span className="text-xs font-extrabold">#{tIdx + 1}</span>
+                        <input
+                          type="text"
+                          value={tab.label}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => {
+                            const nextTabs = supportForm.tabs.map((tItem) =>
+                              tItem.id === tab.id ? { ...tItem, label: e.target.value } : tItem
+                            );
+                            setSupportForm({ ...supportForm, tabs: nextTabs });
+                          }}
+                          className={`w-36 rounded px-1.5 py-0.5 text-xs font-extrabold focus:outline-none ${
+                            isSelected
+                              ? "bg-blue-700 text-white border border-blue-400"
+                              : "bg-slate-50 text-slate-900 border border-slate-200"
+                          }`}
+                        />
+                        {supportForm.tabs.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (!confirm(`'${tab.label}' 탭을 삭제하시겠습니까? (삭제 후 '💾 고객지원 설정 저장하기'를 눌러주세요)`)) return;
+                              const nextTabs = supportForm.tabs.filter((tItem) => tItem.id !== tab.id);
+                              setSupportForm({ ...supportForm, tabs: nextTabs });
+                              if (selectedSupportSubTab === tab.id) {
+                                setSelectedSupportSubTab(nextTabs[0]?.id || "inquiry");
+                              }
+                            }}
+                            className={`ml-1 rounded px-1.5 py-0.5 text-[11px] font-bold ${
+                              isSelected
+                                ? "bg-red-500 text-white hover:bg-red-600"
+                                : "bg-red-50 text-red-600 hover:bg-red-100"
+                            }`}
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {/* 새 고객지원 상단 탭 추가 */}
+                  <div className="flex items-center gap-1.5 rounded-xl border border-dashed border-blue-400 bg-white px-2.5 py-1.5">
+                    <input
+                      type="text"
+                      value={newSupportTabLabel}
+                      onChange={(e) => setNewSupportTabLabel(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          const trimmed = newSupportTabLabel.trim();
+                          if (!trimmed) return;
+                          const newTabId = `sup_tab_${Date.now()}`;
+                          setSupportForm({
+                            ...supportForm,
+                            tabs: [...supportForm.tabs, { id: newTabId, label: trimmed }],
+                          });
+                          setNewSupportTabLabel("");
+                          setSelectedSupportSubTab(newTabId);
+                        }
+                      }}
+                      placeholder="새 탭 이름 (예: 채용·이력서)"
+                      className="w-36 rounded border border-slate-200 px-2 py-1 text-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const trimmed = newSupportTabLabel.trim();
+                        if (!trimmed) {
+                          alert("추가할 고객지원 탭 이름을 입력해 주세요.");
+                          return;
+                        }
+                        const newTabId = `sup_tab_${Date.now()}`;
+                        setSupportForm({
+                          ...supportForm,
+                          tabs: [...supportForm.tabs, { id: newTabId, label: trimmed }],
+                        });
+                        setNewSupportTabLabel("");
+                        setSelectedSupportSubTab(newTabId);
+                      }}
+                      className="rounded-lg bg-blue-600 px-2.5 py-1 text-xs font-extrabold text-white hover:bg-blue-500 cursor-pointer"
+                    >
+                      + 탭 추가
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* (B) 이력서 양식 · 참고자료 등 방문자 다운로드용 첨부파일 업로드 관리 */}
+              <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-5 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
+                  <div>
+                    <h3 className="text-sm font-extrabold text-slate-900">
+                      📥 방문자 다운로드용 첨부파일 관리 ({supportForm.attachments.length}개) — 이력서 양식, 회사소개서, 참고자료 등
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      내 PC에서 파일(HWP, PDF, DOCX, XLSX, ZIP, 이미지 등)을 올리고 <strong>&lsquo;💾 고객지원 설정 저장하기&rsquo;</strong>를 누르면 방문자가 고객지원 자료실 탭에서 즉시 다운로드할 수 있습니다.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label className="rounded-xl bg-emerald-600 hover:bg-emerald-500 px-4 py-2 text-xs font-extrabold text-white shadow-xs cursor-pointer">
+                      📎 내 PC에서 첨부파일 바로 올리기 (이력서·참고자료 추가)
+                      <input
+                        type="file"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const uploadedFile = e.target.files?.[0];
+                          if (!uploadedFile) return;
+                          const url = await uploadMediaFileToUrl(companySlug, uploadedFile);
+                          const today = new Date().toISOString().slice(0, 10);
+                          const baseTitle = uploadedFile.name.replace(/\.[^/.]+$/, "");
+                          const nextAtts = [
+                            ...supportForm.attachments,
+                            {
+                              id: `att_sup_${Date.now()}`,
+                              category: "참고자료/양식",
+                              title: baseTitle || "신규 첨부파일 자료",
+                              desc: "다운로드 버튼을 클릭하시면 첨부파일이 저장됩니다.",
+                              fileName: uploadedFile.name,
+                              fileSize: formatFileSize(uploadedFile.size),
+                              fileUrl: url,
+                              date: today,
+                            },
+                          ];
+                          setSupportForm({ ...supportForm, attachments: nextAtts });
+                        }}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleSaveSupportConfig}
+                      className="rounded-xl bg-blue-600 hover:bg-blue-500 px-4 py-2 text-xs font-extrabold text-white shadow-xs cursor-pointer"
+                    >
+                      💾 첨부파일 변경사항 저장
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid gap-3.5 sm:grid-cols-2">
+                  {supportForm.attachments.map((att, idx) => (
+                    <div
+                      key={att.id}
+                      className="rounded-xl border border-slate-200 bg-white p-4 space-y-2.5 shadow-2xs"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-extrabold text-blue-700">
+                          📎 자료실 첨부파일 #{idx + 1}
+                        </span>
+                        <div className="flex items-center gap-2">
+                          {att.fileUrl && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                triggerBrowserDownload(att.fileUrl, att.fileName || att.title)
+                              }
+                              className="rounded bg-emerald-600 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-emerald-500 cursor-pointer"
+                            >
+                              📥 다운로드 테스트
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const nextAtts = supportForm.attachments.filter(
+                                (x) => x.id !== att.id
+                              );
+                              setSupportForm({ ...supportForm, attachments: nextAtts });
+                            }}
+                            className="text-xs font-bold text-red-600 hover:underline cursor-pointer"
+                          >
+                            삭제
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-2">
+                        <input
+                          type="text"
+                          value={att.category}
+                          onChange={(e) => {
+                            const nextAtts = supportForm.attachments.map((x) =>
+                              x.id === att.id ? { ...x, category: e.target.value } : x
+                            );
+                            setSupportForm({ ...supportForm, attachments: nextAtts });
+                          }}
+                          placeholder="분류 (예: 이력서 양식)"
+                          className="rounded border border-slate-300 px-2.5 py-1.5 text-xs font-bold"
+                        />
+                        <input
+                          type="text"
+                          value={att.title}
+                          onChange={(e) => {
+                            const nextAtts = supportForm.attachments.map((x) =>
+                              x.id === att.id ? { ...x, title: e.target.value } : x
+                            );
+                            setSupportForm({ ...supportForm, attachments: nextAtts });
+                          }}
+                          placeholder="자료 제목 입력"
+                          className="col-span-2 rounded border border-slate-300 px-2.5 py-1.5 text-xs font-bold"
+                        />
+                      </div>
+
+                      <input
+                        type="text"
+                        value={att.desc || ""}
+                        onChange={(e) => {
+                          const nextAtts = supportForm.attachments.map((x) =>
+                            x.id === att.id ? { ...x, desc: e.target.value } : x
+                          );
+                          setSupportForm({ ...supportForm, attachments: nextAtts });
+                        }}
+                        placeholder="자료 설명 입력"
+                        className="w-full rounded border border-slate-300 px-2.5 py-1.5 text-xs"
+                      />
+
+                      <div className="flex flex-wrap items-center gap-2 pt-1">
+                        <label className="rounded-lg bg-slate-900 hover:bg-slate-800 px-3 py-1.5 text-xs font-extrabold text-white cursor-pointer shrink-0">
+                          📁 파일 변경/업로드
+                          <input
+                            type="file"
+                            className="hidden"
+                            onChange={async (e) => {
+                              const uploadedFile = e.target.files?.[0];
+                              if (!uploadedFile) return;
+                              const url = await uploadMediaFileToUrl(companySlug, uploadedFile);
+                              const nextAtts = supportForm.attachments.map((x) =>
+                                x.id === att.id
+                                  ? {
+                                      ...x,
+                                      fileUrl: url,
+                                      fileName: uploadedFile.name,
+                                      fileSize: formatFileSize(uploadedFile.size),
+                                    }
+                                  : x
+                              );
+                              setSupportForm({ ...supportForm, attachments: nextAtts });
+                            }}
+                          />
+                        </label>
+                        <input
+                          type="text"
+                          value={att.fileName}
+                          onChange={(e) => {
+                            const nextAtts = supportForm.attachments.map((x) =>
+                              x.id === att.id ? { ...x, fileName: e.target.value } : x
+                            );
+                            setSupportForm({ ...supportForm, attachments: nextAtts });
+                          }}
+                          placeholder="다운로드될 파일명 (예: 입사지원서.hwp)"
+                          className="flex-1 min-w-[140px] rounded border border-slate-300 px-2.5 py-1.5 text-xs font-mono"
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* (C) 온라인 견적·상담 문의 접수 내역 */}
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs sm:p-8">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-4">
                 <div>
@@ -3147,6 +3471,8 @@ export default function AdminClient({ slug }: { slug: string }) {
           activeSubTab={
             activeTab === "settings"
               ? selectedAboutSubTab
+              : activeTab === "inquiries"
+              ? selectedSupportSubTab
               : hasSubTabsManager(activeTab)
               ? subCategory || "ALL"
               : undefined
@@ -3154,6 +3480,8 @@ export default function AdminClient({ slug }: { slug: string }) {
           onSelectSubTab={(sub) => {
             if (activeTab === "settings" && sub !== "ALL") {
               setSelectedAboutSubTab(sub);
+            } else if (activeTab === "inquiries" && sub !== "ALL") {
+              setSelectedSupportSubTab(sub);
             }
           }}
         />

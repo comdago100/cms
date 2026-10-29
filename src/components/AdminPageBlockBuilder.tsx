@@ -8,14 +8,15 @@ import {
   ImageGridPreset,
   getCustomPageBlocks,
   saveCustomPageBlocks,
-  resetCustomPageBlocks,
   SKELETON_SECTIONS_BY_PAGE,
   getHiddenSkeletonSections,
   saveHiddenSkeletonSections,
-  toggleSkeletonSection,
   uploadMediaFileToUrl,
   getAboutConfig,
   getCategoryTabsConfig,
+  getSupportConfig,
+  formatFileSize,
+  triggerBrowserDownload,
 } from "@/lib/cms";
 
 export interface AdminPageBlockBuilderProps {
@@ -35,16 +36,18 @@ const PAGE_LABELS: Record<PageKey, { label: string; href: string }> = {
   support: { label: "고객지원 (/support)", href: "/support" },
 };
 
+const ACTIVE_GRID_PRESETS: ImageGridPreset[] = ["1x1", "2x1", "3x1", "4x1"];
+
 const GRID_PRESET_SLOTS: Record<
   ImageGridPreset,
   { count: number; label: string; desc: string }
 > = {
-  "1x1": { count: 1, label: "1 × 1 (단독 와이드)", desc: "가로 전체 1장" },
-  "2x1": { count: 2, label: "2 × 1 (가로 2단)", desc: "나란히 2장" },
-  "3x1": { count: 3, label: "3 × 1 (가로 3단)", desc: "나란히 3장" },
-  "4x1": { count: 4, label: "4 × 1 (가로 4단)", desc: "나란히 4장" },
-  "2x2": { count: 4, label: "2 × 2 (2열×2줄=4장)", desc: "2칸씩 2줄 (총 4장)" },
-  "3x2": { count: 6, label: "3 × 2 (3열×2줄=6장)", desc: "3칸씩 2줄 (총 6장)" },
+  "1x1": { count: 1, label: "1 × 1 (단독 와이드)", desc: "가로 전체 1칸 (대형)" },
+  "2x1": { count: 2, label: "2 × 1 (가로 2칸)", desc: "한 줄에 나란히 2칸" },
+  "3x1": { count: 3, label: "3 × 1 (가로 3칸)", desc: "한 줄에 나란히 3칸" },
+  "4x1": { count: 4, label: "4 × 1 (가로 4칸)", desc: "한 줄에 나란히 4칸" },
+  "2x2": { count: 4, label: "2 × 1 (가로 2칸)", desc: "한 줄에 나란히 2칸" },
+  "3x2": { count: 6, label: "3 × 1 (가로 3칸)", desc: "한 줄에 나란히 3칸" },
 };
 
 const BLOCK_TYPE_BADGE: Record<
@@ -66,8 +69,13 @@ const BLOCK_TYPE_BADGE: Record<
     colorClass: "bg-cyan-700 text-white",
     borderClass: "border-cyan-200 bg-cyan-50/30",
   },
+  file_download: {
+    label: "📥 첨부파일(이력서·참고자료) 다운로드 자료실",
+    colorClass: "bg-blue-700 text-white",
+    borderClass: "border-blue-300 bg-blue-50/30",
+  },
   image_grid: {
-    label: "🖼️ 멀티 레이아웃 이미지 (2x1·3x1·2x2·3x2 등)",
+    label: "🖼️ 멀티 레이아웃 이미지 (1x1 · 2x1 · 3x1 · 4x1)",
     colorClass: "bg-emerald-600 text-white",
     borderClass: "border-emerald-200 bg-emerald-50/30",
   },
@@ -122,29 +130,36 @@ export function AdminPageBlockBuilder({
 
   const pageInfo = PAGE_LABELS[page] || { label: page, href: "/" };
 
-  useEffect(() => {
-    const load = () => {
-      setBlocks(getCustomPageBlocks(slug, page));
-      setHiddenSkeletonIds(getHiddenSkeletonSections(slug));
+  const loadSubTabOptions = () => {
+    if (page === "about") {
+      const aboutCfg = getAboutConfig(slug);
+      setSubTabOptions(aboutCfg.tabs);
+    } else if (page === "facilities" || page === "products" || page === "technology") {
+      const catCfg = getCategoryTabsConfig(slug, page);
+      setSubTabOptions(catCfg.tabs.map((tName) => ({ id: tName, label: tName })));
+    } else if (page === "support") {
+      const supCfg = getSupportConfig(slug);
+      setSubTabOptions(supCfg.tabs);
+    } else {
+      setSubTabOptions([]);
+    }
+  };
 
-      if (page === "about") {
-        const aboutCfg = getAboutConfig(slug);
-        setSubTabOptions(aboutCfg.tabs);
-      } else if (page === "facilities" || page === "products" || page === "technology") {
-        const catCfg = getCategoryTabsConfig(slug, page);
-        setSubTabOptions(catCfg.tabs.map((tName) => ({ id: tName, label: tName })));
-      } else {
-        setSubTabOptions([]);
-      }
-    };
-    load();
-    window.addEventListener("cms-updated", load);
-    return () => window.removeEventListener("cms-updated", load);
+  // 페이지 전환 시에만 저장된 블록/뼈대 상태를 불러오고, 편집 중에는 '저장하기'를 누르기 전까지 자동 반영하지 않음
+  useEffect(() => {
+    setBlocks(getCustomPageBlocks(slug, page));
+    setHiddenSkeletonIds(getHiddenSkeletonSections(slug));
+    setUndoStack([]);
+    setHasUnsavedChanges(false);
+    loadSubTabOptions();
   }, [slug, page]);
 
   useEffect(() => {
-    setUndoStack([]);
-    setHasUnsavedChanges(false);
+    const onCmsUpdated = () => {
+      loadSubTabOptions();
+    };
+    window.addEventListener("cms-updated", onCmsUpdated);
+    return () => window.removeEventListener("cms-updated", onCmsUpdated);
   }, [slug, page]);
 
   useEffect(() => {
@@ -162,7 +177,7 @@ export function AdminPageBlockBuilder({
 
   const notify = (msg: string) => {
     setToastMsg(msg);
-    setTimeout(() => setToastMsg(null), 4000);
+    setTimeout(() => setToastMsg(null), 4500);
   };
 
   const pushUndoSnapshot = (actionLabel: string, throttle = false) => {
@@ -180,9 +195,9 @@ export function AdminPageBlockBuilder({
     ]);
   };
 
+  // ⚠️ 중요: '저장하기' 버튼을 누르기 전까지는 홈페이지에 반영되지 않도록 임시(Draft) 상태만 변경합니다.
   const commitPageBlocks = (nextPageBlocks: CustomPageBlock[], message?: string) => {
     setBlocks(nextPageBlocks);
-    saveCustomPageBlocks(slug, page, nextPageBlocks);
     setHasUnsavedChanges(true);
     if (message) notify(message);
   };
@@ -192,9 +207,21 @@ export function AdminPageBlockBuilder({
     saveHiddenSkeletonSections(slug, hiddenSkeletonIds);
     setHasUnsavedChanges(false);
     notify(
-      `💾 [${pageInfo.label}] 추가·수정한 기능 블록(${blocks.length}개)과 기본 뼈대 설정이 안전하게 최종 저장되었습니다!`
+      `💾 [${pageInfo.label}] 변경사항(블록 ${blocks.length}개 및 기본 뼈대 설정)이 홈페이지에 최종 저장·적용되었습니다!`
     );
   };
+
+  useEffect(() => {
+    const onForceSave = () => {
+      if (hasUnsavedChanges) {
+        saveCustomPageBlocks(slug, page, blocks);
+        saveHiddenSkeletonSections(slug, hiddenSkeletonIds);
+        setHasUnsavedChanges(false);
+      }
+    };
+    window.addEventListener("cms-save-all-drafts", onForceSave);
+    return () => window.removeEventListener("cms-save-all-drafts", onForceSave);
+  }, [slug, page, blocks, hiddenSkeletonIds, hasUnsavedChanges]);
 
   const handleUndo = () => {
     if (undoStack.length === 0) {
@@ -206,20 +233,23 @@ export function AdminPageBlockBuilder({
     setUndoStack(nextStack);
     setBlocks(previous.blocks);
     setHiddenSkeletonIds(previous.hiddenSkeletonIds);
-    saveCustomPageBlocks(slug, page, previous.blocks);
-    saveHiddenSkeletonSections(slug, previous.hiddenSkeletonIds);
-    notify(`↩️ 바로 이전 상태로 되돌렸습니다! (복구됨: ${previous.actionLabel})`);
+    setHasUnsavedChanges(true);
+    notify(
+      `↩️ 바로 이전 상태로 되돌렸습니다! (복구됨: ${previous.actionLabel}) — 홈페이지에 반영하려면 '💾 변경사항 저장'을 눌러주세요.`
+    );
   };
 
   const handleToggleSkeleton = (sectionId: string, label: string, currentlyVisible: boolean) => {
     pushUndoSnapshot(`기본 뼈대 '${label}' ${currentlyVisible ? "제거" : "복구"}`);
-    const nextHidden = toggleSkeletonSection(slug, sectionId);
+    const nextHidden = hiddenSkeletonIds.includes(sectionId)
+      ? hiddenSkeletonIds.filter((id) => id !== sectionId)
+      : [...hiddenSkeletonIds, sectionId];
     setHiddenSkeletonIds(nextHidden);
     setHasUnsavedChanges(true);
     notify(
       currentlyVisible
-        ? `🗑️ [${pageInfo.label}] '${label}' 기본 뼈대 섹션이 화면에서 제거(숨김)되었습니다.`
-        : `✅ [${pageInfo.label}] '${label}' 기본 뼈대 섹션이 다시 복구(표시)되었습니다.`
+        ? `🗑️ '${label}' 기본 뼈대가 임시 숨김 처리되었습니다. ('💾 변경사항 저장'을 눌러야 실제 홈페이지에 적용됩니다)`
+        : `✅ '${label}' 기본 뼈대가 복구 선택되었습니다. ('💾 변경사항 저장'을 눌러야 실제 홈페이지에 적용됩니다)`
     );
   };
 
@@ -311,6 +341,44 @@ export function AdminPageBlockBuilder({
             source: "홍보팀",
             date: today,
             linkUrl: "https://www.naver.com",
+          },
+        ],
+      };
+    } else if (type === "file_download") {
+      const today = new Date().toISOString().slice(0, 10);
+      newBlock = {
+        id: newId,
+        page,
+        position: "bottom",
+        type: "file_download",
+        badge: "DOWNLOAD CENTER",
+        title: "이력서 양식 및 주요 참고자료 다운로드",
+        subtitle:
+          "원하시는 첨부파일(이력서 양식, 카탈로그, 기술 참고자료 등)의 '📥 다운로드' 버튼을 클릭하시면 PC나 휴대폰에 즉시 저장됩니다.",
+        attachments: [
+          {
+            id: `att_${Date.now()}_1`,
+            category: "이력서 양식",
+            title: "입사지원서 및 자기소개서 표준 양식",
+            desc: "채용 지원 시 작성하는 당사 공식 이력서 양식입니다.",
+            fileName: "표준_입사지원서_이력서양식.txt",
+            fileSize: "12 KB",
+            fileUrl: `data:text/plain;charset=utf-8,${encodeURIComponent(
+              "====================================================\n        표준 입사지원서 및 자기소개서 양식\n====================================================\n\n1. 성명 / 연락처 / 이메일:\n2. 지원분야:\n3. 경력 및 자격사항:\n4. 자기소개:\n"
+            )}`,
+            date: today,
+          },
+          {
+            id: `att_${Date.now()}_2`,
+            category: "참고자료",
+            title: "회사소개서 및 보유설비·제품 브로셔 참고자료",
+            desc: "주요 생산 품목 및 보유 정밀설비 사양 요약 참고자료입니다.",
+            fileName: "회사소개_및_설비현황_참고자료.txt",
+            fileSize: "18 KB",
+            fileUrl: `data:text/plain;charset=utf-8,${encodeURIComponent(
+              "====================================================\n        회사소개 및 보유설비 참고자료\n====================================================\n\n- 주요사업: 특수·일반 주물 및 초정밀 CNC 가공\n- 보유설비: 5축 MCT, 대형 문형 보링기, 3차원 측정기(CMM)\n"
+            )}`,
+            date: today,
           },
         ],
       };
@@ -544,12 +612,12 @@ export function AdminPageBlockBuilder({
 
   const handleFileChange = async (
     e: React.ChangeEvent<HTMLInputElement>,
-    onUploaded: (url: string) => void
+    onUploaded: (url: string, fileName: string, fileSize: string) => void
   ) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const url = await uploadMediaFileToUrl(slug, file);
-    onUploaded(url);
+    onUploaded(url, file.name, formatFileSize(file.size));
   };
 
   const skeletonList = SKELETON_SECTIONS_BY_PAGE[page] || [];
@@ -575,6 +643,13 @@ export function AdminPageBlockBuilder({
     hoverClass: string;
   }> = [
     {
+      type: "file_download",
+      icon: "📥",
+      title: "+ 첨부파일(이력서·참고자료) 다운로드",
+      desc: "방문자가 이력서·참고자료 즉시 다운로드",
+      hoverClass: "hover:bg-blue-700 hover:border-blue-400",
+    },
+    {
       type: "text_block",
       icon: "📝",
       title: "+ 자유 텍스트 블록",
@@ -592,14 +667,14 @@ export function AdminPageBlockBuilder({
       type: "link_board",
       icon: "📋",
       title: "+ 링크 연동 게시판·공시 표",
-      desc: "클릭 시 외부링크 새 창 이동",
+      desc: "새 창 링크 이동 또는 첨부파일 다운로드",
       hoverClass: "hover:bg-cyan-700 hover:border-cyan-400",
     },
     {
       type: "image_grid",
       icon: "🖼️",
-      title: "+ 멀티 이미지(1x1~4x1·2x2·3x2)",
-      desc: "원하는 가로 칸수·배율 이미지",
+      title: "+ 멀티 이미지(1x1 · 2x1 · 3x1 · 4x1)",
+      desc: "가로 1칸·2칸·3칸·4칸 한 줄 이미지",
       hoverClass: "hover:bg-emerald-600 hover:border-emerald-400",
     },
     {
@@ -846,9 +921,9 @@ export function AdminPageBlockBuilder({
                   onClick={() => {
                     if (!confirm("이 페이지에 추가한 커스텀 블록을 모두 비우시겠습니까?")) return;
                     pushUndoSnapshot("커스텀 블록 전체 비우기");
-                    resetCustomPageBlocks(slug, page);
                     setBlocks([]);
-                    notify("🗑️ 모든 커스텀 블록이 비워졌습니다. ('이전 되돌리기'로 복구 가능)");
+                    setHasUnsavedChanges(true);
+                    notify("🗑️ 모든 커스텀 블록이 임시 비워졌습니다. ('💾 변경사항 저장'을 눌러야 실제 적용되며, '↩️ 이전 되돌리기'로 복구 가능)");
                   }}
                   className="text-[10px] font-bold text-red-400 hover:text-red-300 underline cursor-pointer"
                 >
@@ -950,9 +1025,9 @@ export function AdminPageBlockBuilder({
                 onClick={() => {
                   if (!confirm("이 페이지에 추가한 커스텀 블록을 모두 비우시겠습니까?")) return;
                   pushUndoSnapshot("커스텀 블록 전체 비우기");
-                  resetCustomPageBlocks(slug, page);
                   setBlocks([]);
-                  notify("모든 커스텀 블록이 초기화되었습니다. ('이전으로 되돌리기'로 복구 가능)");
+                  setHasUnsavedChanges(true);
+                  notify("모든 커스텀 블록이 임시 비워졌습니다. ('💾 변경사항 저장하기'를 눌러야 실제 적용되며, '↩️ 이전으로 되돌리기'로 복구 가능)");
                 }}
                 className="rounded-xl border border-red-200 bg-white px-3 py-2.5 text-xs font-bold text-red-600 hover:bg-red-50 cursor-pointer"
               >
@@ -1583,89 +1658,156 @@ export function AdminPageBlockBuilder({
                         {(block.boardRows || []).map((row, rIdx) => (
                           <div
                             key={row.id}
-                            className="grid grid-cols-1 md:grid-cols-12 gap-2.5 items-center bg-slate-50 p-3 rounded-xl border border-slate-200"
+                            className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-2"
                           >
-                            <div className="md:col-span-2">
-                              <input
-                                type="text"
-                                value={row.category}
-                                onChange={(e) => {
-                                  const next = (block.boardRows || []).map((r) =>
-                                    r.id === row.id ? { ...r, category: e.target.value } : r
-                                  );
-                                  handleUpdateBlock(block.id, { boardRows: next });
-                                }}
-                                placeholder="구분 (예: 공시)"
-                                className="w-full px-2.5 py-1.5 rounded border border-slate-300 text-xs font-bold bg-white"
-                              />
+                            <div className="grid grid-cols-1 md:grid-cols-12 gap-2.5 items-center">
+                              <div className="md:col-span-2">
+                                <input
+                                  type="text"
+                                  value={row.category}
+                                  onChange={(e) => {
+                                    const next = (block.boardRows || []).map((r) =>
+                                      r.id === row.id ? { ...r, category: e.target.value } : r
+                                    );
+                                    handleUpdateBlock(block.id, { boardRows: next });
+                                  }}
+                                  placeholder="구분 (예: 공시/양식)"
+                                  className="w-full px-2.5 py-1.5 rounded border border-slate-300 text-xs font-bold bg-white"
+                                />
+                              </div>
+                              <div className="md:col-span-3">
+                                <input
+                                  type="text"
+                                  value={row.title}
+                                  onChange={(e) => {
+                                    const next = (block.boardRows || []).map((r) =>
+                                      r.id === row.id ? { ...r, title: e.target.value } : r
+                                    );
+                                    handleUpdateBlock(block.id, { boardRows: next });
+                                  }}
+                                  placeholder={`#${rIdx + 1} 제목 입력`}
+                                  className="w-full px-2.5 py-1.5 rounded border border-slate-300 text-xs font-bold bg-white"
+                                />
+                              </div>
+                              <div className="md:col-span-2">
+                                <input
+                                  type="text"
+                                  value={row.source}
+                                  onChange={(e) => {
+                                    const next = (block.boardRows || []).map((r) =>
+                                      r.id === row.id ? { ...r, source: e.target.value } : r
+                                    );
+                                    handleUpdateBlock(block.id, { boardRows: next });
+                                  }}
+                                  placeholder="출처/비고"
+                                  className="w-full px-2.5 py-1.5 rounded border border-slate-300 text-xs bg-white"
+                                />
+                              </div>
+                              <div className="md:col-span-3">
+                                <input
+                                  type="text"
+                                  value={row.linkUrl}
+                                  onChange={(e) => {
+                                    const next = (block.boardRows || []).map((r) =>
+                                      r.id === row.id ? { ...r, linkUrl: e.target.value } : r
+                                    );
+                                    handleUpdateBlock(block.id, { boardRows: next });
+                                  }}
+                                  placeholder="새 창 링크 URL (선택)"
+                                  className="w-full px-2.5 py-1.5 rounded border border-cyan-400 text-xs bg-white text-blue-700 font-semibold"
+                                />
+                              </div>
+                              <div className="md:col-span-2 flex items-center gap-1.5">
+                                <input
+                                  type="text"
+                                  value={row.date}
+                                  onChange={(e) => {
+                                    const next = (block.boardRows || []).map((r) =>
+                                      r.id === row.id ? { ...r, date: e.target.value } : r
+                                    );
+                                    handleUpdateBlock(block.id, { boardRows: next });
+                                  }}
+                                  placeholder="2026-10-29"
+                                  className="w-full px-2 py-1.5 rounded border border-slate-300 text-xs bg-white"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const next = (block.boardRows || []).filter(
+                                      (r) => r.id !== row.id
+                                    );
+                                    handleUpdateBlock(block.id, { boardRows: next });
+                                  }}
+                                  className="px-2.5 py-1.5 rounded bg-red-100 text-red-700 text-xs font-bold hover:bg-red-200 shrink-0 cursor-pointer"
+                                >
+                                  삭제
+                                </button>
+                              </div>
                             </div>
-                            <div className="md:col-span-3">
-                              <input
-                                type="text"
-                                value={row.title}
-                                onChange={(e) => {
-                                  const next = (block.boardRows || []).map((r) =>
-                                    r.id === row.id ? { ...r, title: e.target.value } : r
-                                  );
-                                  handleUpdateBlock(block.id, { boardRows: next });
-                                }}
-                                placeholder={`#${rIdx + 1} 제목 입력`}
-                                className="w-full px-2.5 py-1.5 rounded border border-slate-300 text-xs font-bold bg-white"
-                              />
-                            </div>
-                            <div className="md:col-span-2">
-                              <input
-                                type="text"
-                                value={row.source}
-                                onChange={(e) => {
-                                  const next = (block.boardRows || []).map((r) =>
-                                    r.id === row.id ? { ...r, source: e.target.value } : r
-                                  );
-                                  handleUpdateBlock(block.id, { boardRows: next });
-                                }}
-                                placeholder="출처/비고"
-                                className="w-full px-2.5 py-1.5 rounded border border-slate-300 text-xs bg-white"
-                              />
-                            </div>
-                            <div className="md:col-span-3">
-                              <input
-                                type="text"
-                                value={row.linkUrl}
-                                onChange={(e) => {
-                                  const next = (block.boardRows || []).map((r) =>
-                                    r.id === row.id ? { ...r, linkUrl: e.target.value } : r
-                                  );
-                                  handleUpdateBlock(block.id, { boardRows: next });
-                                }}
-                                placeholder="이동할 링크 URL (예: https://dart.fss.or.kr/...)"
-                                className="w-full px-2.5 py-1.5 rounded border border-cyan-400 text-xs bg-white text-blue-700 font-semibold"
-                              />
-                            </div>
-                            <div className="md:col-span-2 flex items-center gap-1.5">
-                              <input
-                                type="text"
-                                value={row.date}
-                                onChange={(e) => {
-                                  const next = (block.boardRows || []).map((r) =>
-                                    r.id === row.id ? { ...r, date: e.target.value } : r
-                                  );
-                                  handleUpdateBlock(block.id, { boardRows: next });
-                                }}
-                                placeholder="2026-10-29"
-                                className="w-full px-2 py-1.5 rounded border border-slate-300 text-xs bg-white"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const next = (block.boardRows || []).filter(
-                                    (r) => r.id !== row.id
-                                  );
-                                  handleUpdateBlock(block.id, { boardRows: next });
-                                }}
-                                className="px-2.5 py-1.5 rounded bg-red-100 text-red-700 text-xs font-bold hover:bg-red-200 shrink-0 cursor-pointer"
-                              >
-                                삭제
-                              </button>
+
+                            {/* 행별 첨부파일 업로드(이력서·참고자료 다운로드용) */}
+                            <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-200/70">
+                              <div className="flex flex-wrap items-center gap-2 text-xs">
+                                <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold cursor-pointer">
+                                  📎 다운로드용 첨부파일(이력서·참고자료 등) 올리기
+                                  <input
+                                    type="file"
+                                    className="hidden"
+                                    onChange={(e) =>
+                                      handleFileChange(e, (uploadedUrl, fileName) => {
+                                        const next = (block.boardRows || []).map((r) =>
+                                          r.id === row.id
+                                            ? {
+                                                ...r,
+                                                attachmentUrl: uploadedUrl,
+                                                attachmentName: fileName,
+                                              }
+                                            : r
+                                        );
+                                        handleUpdateBlock(block.id, { boardRows: next });
+                                        notify(
+                                          `📎 '${fileName}' 첨부파일이 등록되었습니다! ('💾 변경사항 저장'을 누르면 방문자가 다운로드할 수 있습니다)`
+                                        );
+                                      })
+                                    }
+                                  />
+                                </label>
+                                {row.attachmentUrl ? (
+                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-800 font-bold">
+                                    ✅ 첨부됨: {row.attachmentName || "첨부파일"}
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        triggerBrowserDownload(
+                                          row.attachmentUrl!,
+                                          row.attachmentName || row.title
+                                        )
+                                      }
+                                      className="underline text-blue-700 ml-1 cursor-pointer"
+                                    >
+                                      [다운로드 테스트]
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const next = (block.boardRows || []).map((r) =>
+                                          r.id === row.id
+                                            ? { ...r, attachmentUrl: "", attachmentName: "" }
+                                            : r
+                                        );
+                                        handleUpdateBlock(block.id, { boardRows: next });
+                                      }}
+                                      className="text-red-600 hover:underline ml-1 cursor-pointer"
+                                    >
+                                      [첨부해제]
+                                    </button>
+                                  </span>
+                                ) : (
+                                  <span className="text-[11px] text-slate-500">
+                                    파일을 올리면 방문자가 클릭 시 즉시 다운로드할 수 있는 버튼이 생성됩니다.
+                                  </span>
+                                )}
+                              </div>
                             </div>
                           </div>
                         ))}
@@ -1673,16 +1815,241 @@ export function AdminPageBlockBuilder({
                     </div>
                   )}
 
-                  {/* (D) 🖼️ 멀티 레이아웃 이미지 그리드 블록 (1x1, 2x1, 3x1, 4x1, 2x2, 3x2) */}
+                  {/* (C-2) 📥 첨부파일(이력서·참고자료) 다운로드 자료실 블록 (file_download) */}
+                  {block.type === "file_download" && (
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1">
+                            상단 영문/포인트 뱃지
+                          </label>
+                          <input
+                            type="text"
+                            value={block.badge || ""}
+                            onChange={(e) => handleUpdateBlock(block.id, { badge: e.target.value })}
+                            placeholder="예: DOWNLOAD CENTER"
+                            className="w-full px-3.5 py-2 rounded-lg border border-slate-300 text-sm bg-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1">
+                            자료실 섹션 제목
+                          </label>
+                          <input
+                            type="text"
+                            value={block.title || ""}
+                            onChange={(e) => handleUpdateBlock(block.id, { title: e.target.value })}
+                            placeholder="예: 이력서 양식 및 주요 참고자료 다운로드"
+                            className="w-full px-3.5 py-2 rounded-lg border border-slate-300 text-sm bg-white font-bold"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1">
+                            자료실 안내 설명
+                          </label>
+                          <input
+                            type="text"
+                            value={block.subtitle || ""}
+                            onChange={(e) =>
+                              handleUpdateBlock(block.id, { subtitle: e.target.value })
+                            }
+                            placeholder="예: 다운로드 버튼을 클릭하시면 파일이 저장됩니다."
+                            className="w-full px-3.5 py-2 rounded-lg border border-slate-300 text-sm bg-white"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
+                        <span className="text-xs font-extrabold text-blue-950">
+                          📥 다운로드 가능한 첨부파일 목록 ({(block.attachments || []).length}개) — 이력서, 회사소개서, 카탈로그, 참고자료 등 모든 파일 형식 가능
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <label className="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-extrabold shadow-xs cursor-pointer">
+                            📎 내 PC에서 첨부파일 바로 올리기 (자동 항목 추가)
+                            <input
+                              type="file"
+                              className="hidden"
+                              onChange={(e) =>
+                                handleFileChange(e, (uploadedUrl, fileName, fileSize) => {
+                                  const today = new Date().toISOString().slice(0, 10);
+                                  const baseTitle = fileName.replace(/\.[^/.]+$/, "");
+                                  const nextAtts = [
+                                    ...(block.attachments || []),
+                                    {
+                                      id: `att_${Date.now()}`,
+                                      category: "첨부자료",
+                                      title: baseTitle || "신규 첨부파일 자료",
+                                      desc: "클릭 시 첨부파일이 다운로드됩니다.",
+                                      fileName,
+                                      fileSize,
+                                      fileUrl: uploadedUrl,
+                                      date: today,
+                                    },
+                                  ];
+                                  handleUpdateBlock(block.id, { attachments: nextAtts });
+                                  notify(
+                                    `📎 '${fileName}' 파일이 추가되었습니다! ('💾 변경사항 저장'을 눌러 홈페이지에 반영하세요)`
+                                  );
+                                })
+                              }
+                            />
+                          </label>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const today = new Date().toISOString().slice(0, 10);
+                              const nextAtts = [
+                                ...(block.attachments || []),
+                                {
+                                  id: `att_${Date.now()}`,
+                                  category: "이력서/참고자료",
+                                  title: "새 다운로드 자료 제목을 입력하세요",
+                                  desc: "자료에 대한 간단한 안내 설명을 입력하세요.",
+                                  fileName: "첨부파일을_업로드해주세요.pdf",
+                                  fileSize: "",
+                                  fileUrl: "",
+                                  date: today,
+                                },
+                              ];
+                              handleUpdateBlock(block.id, { attachments: nextAtts });
+                            }}
+                            className="px-3 py-2 rounded-xl border border-blue-300 bg-white text-blue-700 text-xs font-extrabold hover:bg-blue-50 cursor-pointer"
+                          >
+                            + 빈 항목 추가
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                        {(block.attachments || []).map((att, aIdx) => (
+                          <div
+                            key={att.id}
+                            className="rounded-xl border border-blue-200 bg-slate-50 p-4 space-y-2.5"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-xs font-extrabold text-blue-800">
+                                📎 첨부파일 #{aIdx + 1}
+                              </span>
+                              <div className="flex items-center gap-2">
+                                {att.fileUrl && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      triggerBrowserDownload(att.fileUrl, att.fileName || att.title)
+                                    }
+                                    className="px-2.5 py-1 rounded bg-emerald-600 text-white text-[11px] font-bold hover:bg-emerald-500 cursor-pointer"
+                                  >
+                                    📥 다운로드 테스트
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const next = (block.attachments || []).filter(
+                                      (x) => x.id !== att.id
+                                    );
+                                    handleUpdateBlock(block.id, { attachments: next });
+                                  }}
+                                  className="text-xs font-bold text-red-600 hover:underline cursor-pointer"
+                                >
+                                  삭제
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-2">
+                              <input
+                                type="text"
+                                value={att.category}
+                                onChange={(e) => {
+                                  const next = (block.attachments || []).map((x) =>
+                                    x.id === att.id ? { ...x, category: e.target.value } : x
+                                  );
+                                  handleUpdateBlock(block.id, { attachments: next });
+                                }}
+                                placeholder="분류 (예: 이력서 양식)"
+                                className="px-2.5 py-1.5 rounded border border-slate-300 text-xs font-bold bg-white"
+                              />
+                              <input
+                                type="text"
+                                value={att.title}
+                                onChange={(e) => {
+                                  const next = (block.attachments || []).map((x) =>
+                                    x.id === att.id ? { ...x, title: e.target.value } : x
+                                  );
+                                  handleUpdateBlock(block.id, { attachments: next });
+                                }}
+                                placeholder="자료 제목 (예: 표준 입사지원서 양식)"
+                                className="col-span-2 px-2.5 py-1.5 rounded border border-slate-300 text-xs font-bold bg-white"
+                              />
+                            </div>
+
+                            <input
+                              type="text"
+                              value={att.desc || ""}
+                              onChange={(e) => {
+                                const next = (block.attachments || []).map((x) =>
+                                  x.id === att.id ? { ...x, desc: e.target.value } : x
+                                );
+                                handleUpdateBlock(block.id, { attachments: next });
+                              }}
+                              placeholder="자료 설명 (예: 한글/워드 겸용 입사지원서 양식입니다)"
+                              className="w-full px-2.5 py-1.5 rounded border border-slate-300 text-xs bg-white"
+                            />
+
+                            <div className="flex flex-wrap items-center gap-2 pt-1">
+                              <label className="px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-extrabold cursor-pointer shrink-0">
+                                📁 파일 선택/변경
+                                <input
+                                  type="file"
+                                  className="hidden"
+                                  onChange={(e) =>
+                                    handleFileChange(e, (uploadedUrl, fileName, fileSize) => {
+                                      const next = (block.attachments || []).map((x) =>
+                                        x.id === att.id
+                                          ? {
+                                              ...x,
+                                              fileUrl: uploadedUrl,
+                                              fileName,
+                                              fileSize,
+                                            }
+                                          : x
+                                      );
+                                      handleUpdateBlock(block.id, { attachments: next });
+                                      notify(`📎 '${fileName}' 파일이 업로드되었습니다!`);
+                                    })
+                                  }
+                                />
+                              </label>
+                              <input
+                                type="text"
+                                value={att.fileName}
+                                onChange={(e) => {
+                                  const next = (block.attachments || []).map((x) =>
+                                    x.id === att.id ? { ...x, fileName: e.target.value } : x
+                                  );
+                                  handleUpdateBlock(block.id, { attachments: next });
+                                }}
+                                placeholder="저장될 파일명 (예: 입사지원서.hwp)"
+                                className="flex-1 min-w-[140px] px-2.5 py-1.5 rounded border border-slate-300 text-xs bg-white font-mono"
+                              />
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* (D) 🖼️ 멀티 레이아웃 이미지 그리드 블록 (1x1, 2x1, 3x1, 4x1) */}
                   {block.type === "image_grid" && (
                     <div className="space-y-5">
-                      {/* 프리셋 버튼 바 */}
+                      {/* 프리셋 버튼 바 (1x1, 2x1, 3x1, 4x1 4종만 깔끔하게 노출) */}
                       <div className="bg-emerald-50/70 border border-emerald-200 rounded-xl p-4">
                         <label className="block text-xs font-extrabold text-emerald-950 mb-2">
-                          📐 이미지 배열 프리셋 선택 (클릭 시 1x1, 2x1, 3x1, 4x1, 2x2, 3x2 칸 수에 맞춰 슬롯이 자동 구성됩니다)
+                          📐 이미지 가로 배율 선택 (1x1은 큼직한 1칸, 2x1은 가로 2칸, 3x1은 가로 3칸, 4x1은 가로 4칸이 한 줄로 표시됩니다)
                         </label>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-2">
-                          {(Object.keys(GRID_PRESET_SLOTS) as ImageGridPreset[]).map((preset) => {
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                          {ACTIVE_GRID_PRESETS.map((preset) => {
                             const info = GRID_PRESET_SLOTS[preset];
                             const active = (block.gridPreset || "2x1") === preset;
                             return (
@@ -1690,13 +2057,13 @@ export function AdminPageBlockBuilder({
                                 key={preset}
                                 type="button"
                                 onClick={() => handleApplyGridPreset(block, preset)}
-                                className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                                className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
                                   active
                                     ? "bg-emerald-600 text-white border-emerald-700 shadow-sm ring-2 ring-emerald-300"
                                     : "bg-white text-slate-800 border-slate-200 hover:bg-emerald-100/50"
                                 }`}
                               >
-                                <div className="text-sm font-extrabold">{preset}</div>
+                                <div className="text-sm font-extrabold">{info.label}</div>
                                 <div
                                   className={`text-[11px] mt-0.5 ${
                                     active ? "text-emerald-100" : "text-slate-500"

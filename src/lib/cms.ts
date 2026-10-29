@@ -117,6 +117,7 @@ export type CustomBlockType =
   | "text_block"
   | "kpi_stats"
   | "link_board"
+  | "file_download"
   | "image_grid"
   | "mini_banner"
   | "card_grid"
@@ -127,6 +128,17 @@ export type CustomBlockType =
 
 export type ImageGridPreset = "1x1" | "2x1" | "3x1" | "4x1" | "2x2" | "3x2";
 
+export interface CustomAttachmentItem {
+  id: string;
+  category: string;
+  title: string;
+  desc?: string;
+  fileName: string;
+  fileSize?: string;
+  fileUrl: string;
+  date?: string;
+}
+
 export interface CustomCardItem {
   id: string;
   badge?: string;
@@ -134,6 +146,8 @@ export interface CustomCardItem {
   desc: string;
   imageUrl?: string;
   linkUrl?: string;
+  attachmentUrl?: string;
+  attachmentName?: string;
 }
 
 export interface CustomKpiStatItem {
@@ -151,6 +165,8 @@ export interface CustomBoardRowItem {
   source: string;
   date: string;
   linkUrl: string;
+  attachmentUrl?: string;
+  attachmentName?: string;
 }
 
 export interface CustomImageGridItem {
@@ -188,6 +204,8 @@ export interface CustomPageBlock {
   btnHref?: string;
   btnNewTab?: boolean;
   imageUrl?: string;
+  attachmentUrl?: string;
+  attachmentName?: string;
   // 텍스트 블록 전용
   textAlign?: "left" | "center" | "two_col";
   calloutText?: string;
@@ -204,7 +222,9 @@ export interface CustomPageBlock {
     col4: string;
   };
   boardRows?: CustomBoardRowItem[];
-  // 멀티 이미지 그리드(2x1, 3x1, 4x1, 2x2, 3x2) 전용
+  // 첨부파일 다운로드 자료실 전용
+  attachments?: CustomAttachmentItem[];
+  // 멀티 이미지 그리드(1x1, 2x1, 3x1, 4x1) 전용
   gridPreset?: ImageGridPreset;
   imageAspect?: "video" | "square" | "wide" | "auto";
   images?: CustomImageGridItem[];
@@ -254,8 +274,10 @@ export const SKELETON_SECTIONS_BY_PAGE: Record<PageKey, SkeletonSectionDef[]> = 
     { id: "ir_board", label: "기본 공시 및 IR 자료실 게시판", desc: "DART 공시 및 주주총회 목록 표" },
   ],
   support: [
+    { id: "sup_subtabs", label: "고객지원 상단 탭 바", desc: "온라인 문의·자료실 등 상단 탭 네비게이션" },
     { id: "sup_contact", label: "좌측 연락처·소재지 안내 박스", desc: "대표전화·팩스·이메일·영업시간 안내" },
     { id: "sup_form", label: "우측 온라인 견적·상담 문의 폼", desc: "고객 문의 접수 양식" },
+    { id: "sup_downloads", label: "자료실 · 양식 첨부파일 다운로드 섹션", desc: "이력서 양식·참고자료 다운로드 목록" },
   ],
 };
 
@@ -462,6 +484,173 @@ export function resetAboutConfig(slug = "noksan"): AboutConfig {
     window.dispatchEvent(new Event("cms-updated"));
   }
   return defaultAboutConfig;
+}
+
+export interface SupportSubTabItem {
+  id: string;
+  label: string;
+}
+
+export interface SupportConfig {
+  tabs: SupportSubTabItem[];
+  attachments: CustomAttachmentItem[];
+}
+
+const SUPPORT_CONFIG_KEY_PREFIX = "noksan_support_config_v1_";
+
+function createSampleTextDataUrl(content: string): string {
+  return `data:text/plain;charset=utf-8,${encodeURIComponent(content)}`;
+}
+
+export const defaultSupportConfig: SupportConfig = {
+  tabs: [
+    { id: "inquiry", label: "온라인 견적·상담 문의" },
+    { id: "downloads", label: "자료실 · 양식 다운로드" },
+  ],
+  attachments: [
+    {
+      id: "att_default_1",
+      category: "이력서 양식",
+      title: "(주)녹산정밀기공 표준 입사지원서 및 자기소개서 양식",
+      desc: "당사 채용 지원 시 사용하는 표준 이력서 및 자기소개서 양식 파일입니다. 다운로드 후 작성하여 이메일로 제출해 주세요.",
+      fileName: "녹산정밀기공_표준_입사지원서_양식.txt",
+      fileSize: "12 KB",
+      fileUrl: createSampleTextDataUrl(
+        "====================================================\n" +
+          "        (주)녹산정밀기공 표준 입사지원서 양식\n" +
+          "====================================================\n\n" +
+          "1. 인적사항\n" +
+          " - 성명 (한글/영문): \n" +
+          " - 연락처 (휴대폰): \n" +
+          " - 이메일: \n" +
+          " - 지원분야 (정밀가공 / 주조 / 품질검사 / 기술영업 / 관리): \n\n" +
+          "2. 학력 및 경력사항\n" +
+          " - 주요 경력 및 보유 자격증: \n\n" +
+          "3. 자기소개 및 지원동기\n" +
+          " - 내용을 작성해 주세요.\n\n" +
+          "※ 작성 완료 후 대표 이메일(info@noksan-precision.co.kr)로 제출 바랍니다.\n"
+      ),
+      date: "2026-10-29",
+    },
+    {
+      id: "att_default_2",
+      category: "참고자료",
+      title: "(주)녹산정밀기공 회사소개서 및 보유 생산설비 총괄 참고자료",
+      desc: "주요 생산 주물·정밀가공 품목, 5축 MCT 및 3차원 측정기 제원 등이 수록된 공식 참고자료입니다.",
+      fileName: "녹산정밀기공_회사소개_및_설비현황_참고자료.txt",
+      fileSize: "18 KB",
+      fileUrl: createSampleTextDataUrl(
+        "====================================================\n" +
+          "   (주)녹산정밀기공 회사소개 및 보유설비 참고자료\n" +
+          "====================================================\n\n" +
+          "■ 기업 개요\n" +
+          " - 회사명: (주)녹산정밀기공 (Noksan Precision Co., Ltd.)\n" +
+          " - 소재지: 부산광역시 강서구 녹산산단382로 14번길 55\n" +
+          " - 주요사업: 특수·일반 주물(GC/GCD/합금강) 및 CNC 초정밀 기계가공\n\n" +
+          "■ 주요 보유 설비\n" +
+          " - 5축 복합 머시닝센터(MCT), 대형 문형 보링기, CNC 선반\n" +
+          " - 3차원 정밀 측정기(CMM), 금속 성분 분석기, 비파괴 검사기\n"
+      ),
+      date: "2026-10-29",
+    },
+  ],
+};
+
+export function getSupportConfig(slug = "noksan"): SupportConfig {
+  if (typeof window === "undefined") return defaultSupportConfig;
+  try {
+    const raw = localStorage.getItem(`${SUPPORT_CONFIG_KEY_PREFIX}${slug}`);
+    if (!raw) return defaultSupportConfig;
+    const parsed = JSON.parse(raw);
+    return {
+      tabs:
+        Array.isArray(parsed.tabs) && parsed.tabs.length > 0
+          ? parsed.tabs
+          : defaultSupportConfig.tabs,
+      attachments: Array.isArray(parsed.attachments)
+        ? parsed.attachments
+        : defaultSupportConfig.attachments,
+    };
+  } catch {
+    return defaultSupportConfig;
+  }
+}
+
+export function saveSupportConfig(slug: string, config: SupportConfig): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(`${SUPPORT_CONFIG_KEY_PREFIX}${slug}`, JSON.stringify(config));
+  window.dispatchEvent(new Event("cms-updated"));
+}
+
+export function resetSupportConfig(slug = "noksan"): SupportConfig {
+  if (typeof window !== "undefined") {
+    localStorage.removeItem(`${SUPPORT_CONFIG_KEY_PREFIX}${slug}`);
+    window.dispatchEvent(new Event("cms-updated"));
+  }
+  return defaultSupportConfig;
+}
+
+export function formatFileSize(bytes: number): string {
+  if (!bytes || bytes <= 0) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  const kb = bytes / 1024;
+  if (kb < 1024) return `${kb.toFixed(1)} KB`;
+  const mb = kb / 1024;
+  return `${mb.toFixed(2)} MB`;
+}
+
+export async function triggerBrowserDownload(
+  fileUrl: string,
+  fileName?: string
+): Promise<void> {
+  if (typeof window === "undefined" || !fileUrl) return;
+  const safeName = (fileName || "첨부파일_다운로드").trim();
+
+  try {
+    if (fileUrl.startsWith("data:")) {
+      const res = await fetch(fileUrl);
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = blobUrl;
+      a.download = safeName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 3000);
+      return;
+    }
+
+    // 일반 URL인 경우 fetch blob 시도 후 실패 시 a 태그 다운로드
+    try {
+      const res = await fetch(fileUrl);
+      if (res.ok) {
+        const blob = await res.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = blobUrl;
+        a.download = safeName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(blobUrl), 3000);
+        return;
+      }
+    } catch {
+      // cross-origin 등에서는 아래 직접 링크 다운로드로 폴백
+    }
+
+    const a = document.createElement("a");
+    a.href = fileUrl;
+    a.download = safeName;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  } catch {
+    window.open(fileUrl, "_blank", "noopener,noreferrer");
+  }
 }
 
 export const defaultFacilityTabsConfig: FacilityTabsConfig = {
