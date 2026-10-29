@@ -177,6 +177,7 @@ export interface CustomFaqItem {
 export interface CustomPageBlock {
   id: string;
   page: PageKey;
+  subTab?: string; // "ALL" (또는 미지정)이면 해당 메뉴 모든 탭에 표시, 특정 탭 ID/이름이면 그 하위 탭에서만 표시
   position: "top" | "bottom";
   type: CustomBlockType;
   bannerTheme?: "blue" | "dark" | "light" | "transparent";
@@ -258,6 +259,60 @@ export const SKELETON_SECTIONS_BY_PAGE: Record<PageKey, SkeletonSectionDef[]> = 
   ],
 };
 
+export interface AboutSubTabItem {
+  id: string;
+  label: string;
+}
+
+export interface AboutStatItem {
+  id: string;
+  label: string;
+  value: string;
+  desc: string;
+}
+
+export interface AboutOverviewRowItem {
+  id: string;
+  label: string;
+  value: string;
+}
+
+export interface AboutVisionPillarItem {
+  id: string;
+  step: string;
+  title: string;
+  desc: string;
+}
+
+export interface AboutHistoryEventItem {
+  id: string;
+  year: string;
+  text: string;
+}
+
+export interface AboutHistoryBlockItem {
+  id: string;
+  period: string;
+  phase: string;
+  events: AboutHistoryEventItem[];
+}
+
+export interface AboutDirectionItem {
+  id: string;
+  title: string;
+  desc: string;
+}
+
+export interface AboutConfig {
+  tabs: AboutSubTabItem[];
+  overviewStats: AboutStatItem[];
+  extraOverviewRows: AboutOverviewRowItem[];
+  visionBadge: string;
+  visionPillars: AboutVisionPillarItem[];
+  historyBlocks: AboutHistoryBlockItem[];
+  directions: AboutDirectionItem[];
+}
+
 export interface FacilityTabsConfig {
   allLabel: string; // 예: "전체 설비"
   tabs: string[];   // 예: ["가공설비", "주조설비", "검사설비"]
@@ -267,10 +322,147 @@ const STORAGE_KEY_PREFIX = "noksan_cms_items_v2_";
 const SETTINGS_KEY_PREFIX = "noksan_site_settings_v2_";
 const INQUIRIES_KEY_PREFIX = "noksan_inquiries_v2_";
 const HOME_CONFIG_KEY_PREFIX = "noksan_home_config_v2_";
+const ABOUT_CONFIG_KEY_PREFIX = "noksan_about_config_v1_";
 const FACILITY_TABS_KEY_PREFIX = "noksan_facility_tabs_v2_";
 const CATEGORY_TABS_KEY_PREFIX = "noksan_category_tabs_v2_";
 const CUSTOM_BLOCKS_KEY_PREFIX = "noksan_custom_blocks_v1_";
 const HIDDEN_SKELETON_KEY_PREFIX = "noksan_hidden_skeleton_v1_";
+
+export const defaultAboutConfig: AboutConfig = {
+  tabs: [
+    { id: "greeting", label: "CEO 인사말" },
+    { id: "overview", label: "회사개요" },
+    { id: "vision", label: "비전·핵심가치" },
+    { id: "history", label: "기업연혁" },
+    { id: "location", label: "오시는 길" },
+  ],
+  overviewStats: [
+    { id: "ast_1", label: "업력 및 노하우", value: "28년+", desc: "1998년 창립 이래 무결점 생산" },
+    { id: "ast_2", label: "가공 정밀도", value: "±0.005mm", desc: "3차원 측정 기반 초정밀 공차" },
+    { id: "ast_3", label: "납기 준수율", value: "99.4%", desc: "체계적인 공정·생산 일정 관리" },
+    { id: "ast_4", label: "보유 생산설비", value: "20대+", desc: "MCT·CNC선반·대형보링·유도로" },
+  ],
+  extraOverviewRows: [],
+  visionBadge: "VISION 2030",
+  visionPillars: [
+    {
+      id: "vp_1",
+      step: "01",
+      title: "초정밀 품질주의 (Zero-Defect)",
+      desc: "원자재 성분 분석부터 3차원 측정 검사까지 전 공정 데이터 기반 품질 보증 체계를 실천합니다.",
+    },
+    {
+      id: "vp_2",
+      step: "02",
+      title: "스마트 공정 혁신 (Smart Factory)",
+      desc: "대형·복합 CNC 설비 자동화와 가공 지그 독자 개발로 생산성과 정밀도를 동시에 극대화합니다.",
+    },
+    {
+      id: "vp_3",
+      step: "03",
+      title: "고객 가치 동반성장 (Partnership)",
+      desc: "단순 외주 가공을 넘어 도면 검토·소재 제안부터 납기까지 책임지는 기술 파트너가 됩니다.",
+    },
+  ],
+  historyBlocks: [
+    {
+      id: "hb_1",
+      period: "2020 ~ 현재",
+      phase: "스마트 정밀가공 고도화 및 글로벌 수출 확대기",
+      events: [
+        { id: "he_1", year: "2025. 11", text: "녹산 제2공장 대형 CNC 문형 보링기 및 복합가공 라인 증설" },
+        { id: "he_2", year: "2024. 02", text: "중소벤처기업부 기술혁신형 중소기업(Inno-Biz) 인증 획득" },
+        { id: "he_3", year: "2023. 04", text: "국내 주요 중공업·방산 대기업 1차 우수협력사(SQ) 인증" },
+        { id: "he_4", year: "2021. 11", text: "고내압 밸브 바디 정밀 주조 및 복합 가공 지그 장치 특허 등록" },
+      ],
+    },
+    {
+      id: "hb_2",
+      period: "2010 ~ 2019",
+      phase: "국제 품질·선급 인증 획득 및 사업 다각화기",
+      events: [
+        { id: "he_5", year: "2018. 03", text: "한국선급(KR) 및 노르웨이선급(DNV) 선박 부품 공장승인 획득" },
+        { id: "he_6", year: "2015. 09", text: "ISO 14001 환경경영시스템 국제 인증 획득" },
+        { id: "he_7", year: "2012. 06", text: "ISO 9001 품질경영시스템 인증 및 3차원 측정실(CMM) 구축" },
+      ],
+    },
+    {
+      id: "hb_3",
+      period: "1998 ~ 2009",
+      phase: "창립 및 부산 녹산국가산업단지 기반 구축기",
+      events: [
+        { id: "he_8", year: "2005. 08", text: "부산 녹산국가산업단지 현 본사 및 제1공장 신축 이전" },
+        { id: "he_9", year: "2001. 04", text: "선박용 밸브 및 중장비 유압 부품 정밀가공 사업부 출범" },
+        { id: "he_10", year: "1998. 05", text: "(주)녹산정밀기공 법인 설립 (특수·일반 주물 및 기계부품 제조)" },
+      ],
+    },
+  ],
+  directions: [
+    {
+      id: "dir_1",
+      title: "승용차·화물차 이용 시",
+      desc: "남해고속도로 가락IC 또는 부산신항 배후도로 → 녹산국가산업단지 진입 → 녹산산단382로 14번길 방면 (대형 화물차 진·출입 가능)",
+    },
+    {
+      id: "dir_2",
+      title: "대중교통 이용 시",
+      desc: "부산 도시철도 1호선 하단역 환승 → 급행 1009번 또는 강서구 마을버스 이용 → '녹산산단 중소기업단지' 정류장 하차 도보 5분",
+    },
+    {
+      id: "dir_3",
+      title: "김해국제공항 / 부산역 출발 시",
+      desc: "김해국제공항에서 차량 약 25분 소요 / KTX 부산역에서 차량 약 40분 소요",
+    },
+  ],
+};
+
+export function getAboutConfig(slug = "noksan"): AboutConfig {
+  if (typeof window === "undefined") return defaultAboutConfig;
+  try {
+    const raw = localStorage.getItem(`${ABOUT_CONFIG_KEY_PREFIX}${slug}`);
+    if (!raw) return defaultAboutConfig;
+    const parsed = JSON.parse(raw);
+    return {
+      ...defaultAboutConfig,
+      ...parsed,
+      tabs:
+        Array.isArray(parsed.tabs) && parsed.tabs.length > 0
+          ? parsed.tabs
+          : defaultAboutConfig.tabs,
+      overviewStats: Array.isArray(parsed.overviewStats)
+        ? parsed.overviewStats
+        : defaultAboutConfig.overviewStats,
+      extraOverviewRows: Array.isArray(parsed.extraOverviewRows)
+        ? parsed.extraOverviewRows
+        : defaultAboutConfig.extraOverviewRows,
+      visionPillars: Array.isArray(parsed.visionPillars)
+        ? parsed.visionPillars
+        : defaultAboutConfig.visionPillars,
+      historyBlocks: Array.isArray(parsed.historyBlocks)
+        ? parsed.historyBlocks
+        : defaultAboutConfig.historyBlocks,
+      directions: Array.isArray(parsed.directions)
+        ? parsed.directions
+        : defaultAboutConfig.directions,
+    };
+  } catch {
+    return defaultAboutConfig;
+  }
+}
+
+export function saveAboutConfig(slug: string, config: AboutConfig): void {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(`${ABOUT_CONFIG_KEY_PREFIX}${slug}`, JSON.stringify(config));
+  window.dispatchEvent(new Event("cms-updated"));
+}
+
+export function resetAboutConfig(slug = "noksan"): AboutConfig {
+  if (typeof window !== "undefined") {
+    localStorage.removeItem(`${ABOUT_CONFIG_KEY_PREFIX}${slug}`);
+    window.dispatchEvent(new Event("cms-updated"));
+  }
+  return defaultAboutConfig;
+}
 
 export const defaultFacilityTabsConfig: FacilityTabsConfig = {
   allLabel: "전체 설비",

@@ -8,10 +8,13 @@ import {
   defaultSiteSettings,
   SiteSettings,
   getHiddenSkeletonSections,
+  getAboutConfig,
+  defaultAboutConfig,
+  AboutConfig,
 } from "@/lib/cms";
 import { CustomPageBlocks } from "@/components/CustomPageBlocks";
 
-type AboutTab = "greeting" | "overview" | "vision" | "history" | "location";
+type AboutTab = string;
 
 const aboutTabsContent = {
   KR: {
@@ -383,6 +386,7 @@ export default function AboutPage() {
   const { locale, t } = useLanguage();
   const [activeTab, setActiveTab] = useState<AboutTab>("greeting");
   const [settings, setSettings] = useState<SiteSettings>(defaultSiteSettings);
+  const [aboutConfig, setAboutConfig] = useState<AboutConfig>(defaultAboutConfig);
   const [mapQuery, setMapQuery] = useState<string>(defaultSiteSettings.address);
   const [hiddenSections, setHiddenSections] = useState<string[]>([]);
 
@@ -390,6 +394,7 @@ export default function AboutPage() {
     const load = () => {
       const s = getSiteSettings("noksan");
       setSettings(s);
+      setAboutConfig(getAboutConfig("noksan"));
       setMapQuery(s.address);
       const hidden = getHiddenSkeletonSections("noksan");
       setHiddenSections(hidden);
@@ -400,10 +405,18 @@ export default function AboutPage() {
   }, []);
 
   const c = aboutTabsContent[locale];
-  const visibleTabs = c.tabs.filter((tab) => !hiddenSections.includes(`about_tab_${tab.id}`));
+  const rawTabs = locale === "KR" ? aboutConfig.tabs : c.tabs;
+  const visibleTabs = rawTabs.filter((tab) => !hiddenSections.includes(`about_tab_${tab.id}`));
   const effectiveTab = visibleTabs.some((tItem) => tItem.id === activeTab)
     ? activeTab
     : visibleTabs[0]?.id || null;
+
+  const displayStats = locale === "KR" ? aboutConfig.overviewStats : c.stats;
+  const displayVisionBadge =
+    locale === "KR" ? aboutConfig.visionBadge || c.vision.sloganLabel : c.vision.sloganLabel;
+  const displayVisionPillars = locale === "KR" ? aboutConfig.visionPillars : c.vision.pillars;
+  const displayHistory = locale === "KR" ? aboutConfig.historyBlocks : c.history;
+  const displayDirections = locale === "KR" ? aboutConfig.directions : c.location.directions;
 
   const companyName = locale === "KR" ? settings.name : t.company.name;
   const ceoName = locale === "KR" ? settings.ceo : t.company.ceo;
@@ -465,8 +478,8 @@ export default function AboutPage() {
         </div>
       )}
 
-      {/* 상단 커스텀 블록 (작은 배너 · 카드# · 이미지) */}
-      <CustomPageBlocks page="about" position="top" />
+      {/* 상단 커스텀 블록 (전체 탭 공통 또는 현재 선택된 하위 탭 전용) */}
+      <CustomPageBlocks page="about" position="top" subTab={effectiveTab || undefined} />
 
       {/* 탭별 본문 컨텐츠 영역 */}
       {effectiveTab && (
@@ -515,18 +528,20 @@ export default function AboutPage() {
         {/* 2. 회사개요 */}
         {effectiveTab === "overview" && (
           <div className="space-y-8">
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {c.stats.map((stat) => (
-                <div
-                  key={stat.label}
-                  className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs"
-                >
-                  <p className="text-xs font-semibold text-slate-500">{stat.label}</p>
-                  <p className="mt-2 text-3xl font-extrabold text-blue-700">{stat.value}</p>
-                  <p className="mt-1.5 text-xs text-slate-600">{stat.desc}</p>
-                </div>
-              ))}
-            </div>
+            {displayStats.length > 0 && (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                {displayStats.map((stat, sIdx) => (
+                  <div
+                    key={stat.label + sIdx}
+                    className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs"
+                  >
+                    <p className="text-xs font-semibold text-slate-500">{stat.label}</p>
+                    <p className="mt-2 text-3xl font-extrabold text-blue-700">{stat.value}</p>
+                    <p className="mt-1.5 text-xs text-slate-600">{stat.desc}</p>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs">
               <div className="border-b border-slate-200 bg-slate-50 px-6 py-4">
@@ -557,10 +572,20 @@ export default function AboutPage() {
                   <dt className="text-xs font-semibold text-slate-500">{t.about.labels.business}</dt>
                   <dd className="mt-1.5 text-slate-900">{businessDesc}</dd>
                 </div>
-                <div className="flex flex-col p-6 md:col-span-2">
+                <div className="flex flex-col border-b border-slate-200 p-6 md:col-span-2 last:border-b-0">
                   <dt className="text-xs font-semibold text-slate-500">{t.about.labels.address}</dt>
                   <dd className="mt-1.5 text-slate-900">{addressText}</dd>
                 </div>
+                {locale === "KR" &&
+                  (aboutConfig.extraOverviewRows || []).map((row) => (
+                    <div
+                      key={row.id}
+                      className="flex flex-col border-t border-slate-200 p-6 md:col-span-2"
+                    >
+                      <dt className="text-xs font-semibold text-slate-500">{row.label}</dt>
+                      <dd className="mt-1.5 font-semibold text-slate-900">{row.value}</dd>
+                    </div>
+                  ))}
               </dl>
             </div>
           </div>
@@ -571,7 +596,7 @@ export default function AboutPage() {
           <div className="space-y-8">
             <div className="rounded-2xl bg-slate-900 p-8 text-center text-white sm:p-12">
               <span className="inline-block rounded-full bg-blue-500/20 px-3.5 py-1 text-xs font-bold tracking-wider text-blue-400">
-                {c.vision.sloganLabel}
+                {displayVisionBadge}
               </span>
               <h2 className="mt-4 text-2xl font-bold sm:text-3xl">
                 “{visionSlogan}”
@@ -581,33 +606,35 @@ export default function AboutPage() {
               </p>
             </div>
 
-            <div className="grid gap-6 md:grid-cols-3">
-              {c.vision.pillars.map((pillar) => (
-                <div
-                  key={pillar.step}
-                  className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-7 shadow-xs"
-                >
-                  <span className="text-3xl font-black text-blue-600/20">
-                    {pillar.step}
-                  </span>
-                  <h3 className="mt-2 text-lg font-bold text-slate-900">
-                    {pillar.title}
-                  </h3>
-                  <p className="mt-3 text-sm leading-relaxed text-slate-600">
-                    {pillar.desc}
-                  </p>
-                </div>
-              ))}
-            </div>
+            {displayVisionPillars.length > 0 && (
+              <div className="grid gap-6 md:grid-cols-3">
+                {displayVisionPillars.map((pillar, pIdx) => (
+                  <div
+                    key={pillar.step + pIdx}
+                    className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white p-7 shadow-xs"
+                  >
+                    <span className="text-3xl font-black text-blue-600/20">
+                      {pillar.step}
+                    </span>
+                    <h3 className="mt-2 text-lg font-bold text-slate-900">
+                      {pillar.title}
+                    </h3>
+                    <p className="mt-3 text-sm leading-relaxed text-slate-600">
+                      {pillar.desc}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
         {/* 4. 기업연혁 */}
         {effectiveTab === "history" && (
           <div className="space-y-8">
-            {c.history.map((block) => (
+            {displayHistory.map((block, bIdx) => (
               <div
-                key={block.period}
+                key={block.period + bIdx}
                 className="grid gap-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-xs md:grid-cols-12 sm:p-8"
               >
                 <div className="md:col-span-4 border-b border-slate-100 pb-4 md:border-b-0 md:border-r md:pr-6">
@@ -619,8 +646,11 @@ export default function AboutPage() {
                   </p>
                 </div>
                 <div className="md:col-span-8 space-y-4">
-                  {block.events.map((ev) => (
-                    <div key={ev.year} className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:gap-4">
+                  {block.events.map((ev, eIdx) => (
+                    <div
+                      key={ev.year + eIdx}
+                      className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:gap-4"
+                    >
                       <span className="w-24 shrink-0 font-mono text-sm font-bold text-slate-900">
                         {ev.year}
                       </span>
@@ -707,7 +737,7 @@ export default function AboutPage() {
                   {addressText}
                 </p>
                 <div className="mt-6 space-y-5">
-                  {c.location.directions.map((dir, i) => (
+                  {displayDirections.map((dir, i) => (
                     <div key={i} className="border-b border-slate-100 pb-4 last:border-b-0 last:pb-0">
                       <h3 className="text-sm font-bold text-blue-700">{dir.title}</h3>
                       <p className="mt-1.5 text-xs leading-relaxed text-slate-600">
@@ -731,8 +761,8 @@ export default function AboutPage() {
       </div>
       )}
 
-      {/* 하단 커스텀 블록 (작은 배너 · 카드# · 이미지) */}
-      <CustomPageBlocks page="about" position="bottom" />
+      {/* 하단 커스텀 블록 (전체 탭 공통 또는 현재 선택된 하위 탭 전용) */}
+      <CustomPageBlocks page="about" position="bottom" subTab={effectiveTab || undefined} />
     </div>
   );
 }

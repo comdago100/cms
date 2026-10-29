@@ -28,10 +28,12 @@ function toYoutubeEmbedUrl(url: string): string | null {
 export function CustomPageBlocks({
   page,
   position,
+  subTab,
   slug = "noksan",
 }: {
   page: PageKey;
   position: "top" | "bottom";
+  subTab?: string;
   slug?: string;
 }) {
   const [blocks, setBlocks] = useState<CustomPageBlock[]>([]);
@@ -45,12 +47,19 @@ export function CustomPageBlocks({
   useEffect(() => {
     const load = () => {
       const all = getCustomPageBlocks(slug, page);
-      setBlocks(all.filter((b) => (b.position || "bottom") === position));
+      setBlocks(
+        all.filter((b) => {
+          if ((b.position || "bottom") !== position) return false;
+          if (!subTab) return true;
+          const bSub = b.subTab || "ALL";
+          return bSub === "ALL" || bSub === subTab;
+        })
+      );
     };
     load();
     window.addEventListener("cms-updated", load);
     return () => window.removeEventListener("cms-updated", load);
-  }, [slug, page, position]);
+  }, [slug, page, position, subTab]);
 
   if (blocks.length === 0) return null;
 

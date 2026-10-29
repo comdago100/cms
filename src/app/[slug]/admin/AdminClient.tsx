@@ -39,6 +39,11 @@ import {
   renameCategoryTab,
   updateCmsItemLink,
   normalizeExternalUrl,
+  AboutConfig,
+  defaultAboutConfig,
+  getAboutConfig,
+  saveAboutConfig,
+  resetAboutConfig,
 } from "@/lib/cms";
 import { AdminPageBlockBuilder } from "@/components/AdminPageBlockBuilder";
 
@@ -131,6 +136,9 @@ export default function AdminClient({ slug }: { slug: string }) {
   const [activeTab, setActiveTab] = useState<AdminMainTab>("home");
   const [homeForm, setHomeForm] = useState<HomeConfig>(defaultHomeConfig);
   const [settingsForm, setSettingsForm] = useState<SiteSettings>(defaultSiteSettings);
+  const [aboutForm, setAboutForm] = useState<AboutConfig>(defaultAboutConfig);
+  const [selectedAboutSubTab, setSelectedAboutSubTab] = useState<string>("greeting");
+  const [newAboutTabLabel, setNewAboutTabLabel] = useState<string>("");
   const [facilityTabsForm, setFacilityTabsForm] = useState<FacilityTabsConfig>(
     defaultFacilityTabsConfig
   );
@@ -167,6 +175,7 @@ export default function AdminClient({ slug }: { slug: string }) {
     }
     setHomeForm(getHomeConfig(companySlug));
     setSettingsForm(getSiteSettings(companySlug));
+    setAboutForm(getAboutConfig(companySlug));
     setFacilityTabsForm(getCategoryTabsConfig(companySlug, "facilities"));
     setInquiries(getSupportInquiries(companySlug));
   }, [companySlug]);
@@ -206,6 +215,7 @@ export default function AdminClient({ slug }: { slug: string }) {
       setInquiries(getSupportInquiries(companySlug));
     } else if (activeTab === "settings") {
       setSettingsForm(getSiteSettings(companySlug));
+      setAboutForm(getAboutConfig(companySlug));
     } else if (activeTab === "home") {
       setHomeForm(getHomeConfig(companySlug));
     }
@@ -235,15 +245,19 @@ export default function AdminClient({ slug }: { slug: string }) {
   const handleSaveSettings = (e: React.FormEvent) => {
     e.preventDefault();
     saveSiteSettings(companySlug, settingsForm);
+    saveAboutConfig(companySlug, aboutForm);
     alert(
-      "회사소개, 대표 주소(구글지도 연동), 재무지표, 고객지원 연락처 설정이 모두 저장되었습니다!"
+      "회사소개(모든 탭별 상세 내용), 대표 주소(구글지도 연동), 재무지표, 고객지원 연락처 설정이 모두 저장되었습니다!"
     );
   };
 
   const handleResetSettings = () => {
-    if (!confirm("기업 기본 설정을 초기값으로 되돌리시겠습니까?")) return;
+    if (!confirm("기업 기본 설정과 회사소개 탭 구성을 초기값으로 되돌리시겠습니까?")) return;
     const reset = resetSiteSettings(companySlug);
+    const resetAbout = resetAboutConfig(companySlug);
     setSettingsForm(reset);
+    setAboutForm(resetAbout);
+    setSelectedAboutSubTab("greeting");
     alert("초기 설정으로 복원되었습니다.");
   };
 
@@ -1530,77 +1544,794 @@ export default function AdminClient({ slug }: { slug: string }) {
               </div>
             </div>
 
-            {/* CEO 인사말 및 비전 */}
-            <div className="border-t border-slate-100 pt-5">
-              <h3 className="text-sm font-bold text-blue-700 mb-3">
-                2. CEO 인사말 및 비전 슬로건
-              </h3>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    CEO 인사말 헤드라인 문구
-                  </label>
-                  <input
-                    type="text"
-                    value={settingsForm.ceoGreetingLead}
-                    onChange={(e) =>
-                      setSettingsForm({
-                        ...settingsForm,
-                        ceoGreetingLead: e.target.value,
-                      })
-                    }
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    CEO 인사말 본문 (줄바꿈으로 문단이 나뉩니다)
-                  </label>
-                  <textarea
-                    rows={4}
-                    value={settingsForm.ceoGreetingBody}
-                    onChange={(e) =>
-                      setSettingsForm({
-                        ...settingsForm,
-                        ceoGreetingBody: e.target.value,
-                      })
-                    }
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                  />
-                </div>
-                <div className="grid gap-4 sm:grid-cols-2">
+            {/* CEO 인사말 및 비전 -> 회사소개 탭별(인사말·회사개요·비전·기업연혁·오시는길·신규탭) 상세 추가·수정 관리 */}
+            <div className="border-t-2 border-blue-100 pt-6 space-y-5">
+              <div className="rounded-2xl border border-blue-200 bg-blue-50/40 p-5 space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      VISION 2030 메인 슬로건
-                    </label>
+                    <span className="inline-block rounded-full bg-blue-600 px-3 py-0.5 text-[11px] font-extrabold text-white">
+                      회사소개 하위 탭별 개별 컨트롤
+                    </span>
+                    <h3 className="mt-1 text-base font-extrabold text-slate-900">
+                      2. 회사소개 내부 탭(CEO 인사말 · 회사개요 · 비전 · 기업연혁 · 오시는 길) 개별 추가·수정 관리
+                    </h3>
+                    <p className="mt-0.5 text-xs text-slate-600">
+                      회사소개 안의 각 탭 이름을 수정하거나 새 탭을 추가할 수 있으며, 탭을 클릭하면 <strong>그 탭 안의 세부 항목(핵심 수치, 비전 카드, 연혁, 교통편, 전용 이미지/텍스트 블록)</strong>을 별도로 추가·수정할 수 있습니다.
+                    </p>
+                  </div>
+                </div>
+
+                {/* 회사소개 상단 탭 목록 (클릭 시 해당 탭 편집 + 이름 수정 + 삭제 + 새 탭 추가) */}
+                <div className="flex flex-wrap items-center gap-2">
+                  {aboutForm.tabs.map((tab, tIdx) => {
+                    const isSelected = selectedAboutSubTab === tab.id;
+                    return (
+                      <div
+                        key={tab.id}
+                        onClick={() => setSelectedAboutSubTab(tab.id)}
+                        className={`flex items-center gap-1.5 rounded-xl border px-3 py-2 transition-all cursor-pointer ${
+                          isSelected
+                            ? "border-blue-600 bg-blue-600 text-white shadow-sm ring-2 ring-blue-200"
+                            : "border-slate-200 bg-white text-slate-800 hover:border-blue-300"
+                        }`}
+                      >
+                        <span className="text-xs font-extrabold">#{tIdx + 1}</span>
+                        <input
+                          type="text"
+                          value={tab.label}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => {
+                            const nextTabs = aboutForm.tabs.map((tItem) =>
+                              tItem.id === tab.id ? { ...tItem, label: e.target.value } : tItem
+                            );
+                            const nextCfg = { ...aboutForm, tabs: nextTabs };
+                            setAboutForm(nextCfg);
+                            saveAboutConfig(companySlug, nextCfg);
+                          }}
+                          className={`w-28 rounded px-1.5 py-0.5 text-xs font-extrabold focus:outline-none ${
+                            isSelected
+                              ? "bg-blue-700 text-white border border-blue-400"
+                              : "bg-slate-50 text-slate-900 border border-slate-200"
+                          }`}
+                        />
+                        {aboutForm.tabs.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (!confirm(`'${tab.label}' 탭을 삭제하시겠습니까?`)) return;
+                              const nextTabs = aboutForm.tabs.filter((tItem) => tItem.id !== tab.id);
+                              const nextCfg = { ...aboutForm, tabs: nextTabs };
+                              setAboutForm(nextCfg);
+                              saveAboutConfig(companySlug, nextCfg);
+                              if (selectedAboutSubTab === tab.id) {
+                                setSelectedAboutSubTab(nextTabs[0]?.id || "greeting");
+                              }
+                            }}
+                            className={`ml-1 rounded px-1.5 py-0.5 text-[11px] font-bold ${
+                              isSelected
+                                ? "bg-red-500 text-white hover:bg-red-600"
+                                : "bg-red-50 text-red-600 hover:bg-red-100"
+                            }`}
+                          >
+                            ×
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {/* 새 회사소개 하위 탭 추가 */}
+                  <div className="flex items-center gap-1.5 rounded-xl border border-dashed border-blue-400 bg-white px-2.5 py-1.5">
                     <input
                       type="text"
-                      value={settingsForm.visionSlogan}
-                      onChange={(e) =>
-                        setSettingsForm({
-                          ...settingsForm,
-                          visionSlogan: e.target.value,
-                        })
-                      }
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                      value={newAboutTabLabel}
+                      onChange={(e) => setNewAboutTabLabel(e.target.value)}
+                      placeholder="새 탭 이름 (예: 조직도)"
+                      className="w-32 rounded border border-slate-200 px-2 py-1 text-xs"
                     />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const trimmed = newAboutTabLabel.trim();
+                        if (!trimmed) {
+                          alert("추가할 탭 이름을 입력해 주세요.");
+                          return;
+                        }
+                        const newTabId = `custom_${Date.now()}`;
+                        const nextTabs = [...aboutForm.tabs, { id: newTabId, label: trimmed }];
+                        const nextCfg = { ...aboutForm, tabs: nextTabs };
+                        setAboutForm(nextCfg);
+                        saveAboutConfig(companySlug, nextCfg);
+                        setNewAboutTabLabel("");
+                        setSelectedAboutSubTab(newTabId);
+                      }}
+                      className="rounded-lg bg-blue-600 px-2.5 py-1 text-xs font-extrabold text-white hover:bg-blue-500 cursor-pointer"
+                    >
+                      + 탭 추가
+                    </button>
                   </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">
-                      비전 서브 설명
-                    </label>
-                    <input
-                      type="text"
-                      value={settingsForm.visionSubSlogan}
-                      onChange={(e) =>
-                        setSettingsForm({
-                          ...settingsForm,
-                          visionSubSlogan: e.target.value,
-                        })
-                      }
-                      className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                    />
-                  </div>
+                </div>
+
+                {/* 선택된 회사소개 하위 탭 내부 편집 패널 */}
+                <div className="rounded-xl border border-slate-200 bg-white p-5 space-y-5">
+                  {/* (1) CEO 인사말 탭 */}
+                  {selectedAboutSubTab === "greeting" && (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                        <h4 className="text-sm font-extrabold text-slate-900">
+                          📌 [CEO 인사말] 탭 내부 내용 수정
+                        </h4>
+                        <span className="text-xs font-semibold text-blue-600">
+                          아래 만능 블록 빌더에서도 현재 [CEO 인사말] 탭이 자동 선택되어 있습니다.
+                        </span>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          CEO 인사말 헤드라인 문구
+                        </label>
+                        <input
+                          type="text"
+                          value={settingsForm.ceoGreetingLead}
+                          onChange={(e) =>
+                            setSettingsForm({
+                              ...settingsForm,
+                              ceoGreetingLead: e.target.value,
+                            })
+                          }
+                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">
+                          CEO 인사말 본문 (엔터 줄바꿈으로 문단이 나뉩니다)
+                        </label>
+                        <textarea
+                          rows={5}
+                          value={settingsForm.ceoGreetingBody}
+                          onChange={(e) =>
+                            setSettingsForm({
+                              ...settingsForm,
+                              ceoGreetingBody: e.target.value,
+                            })
+                          }
+                          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm leading-relaxed"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {/* (2) 회사개요 탭 */}
+                  {selectedAboutSubTab === "overview" && (
+                    <div className="space-y-5">
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                        <div>
+                          <h4 className="text-sm font-extrabold text-slate-900">
+                            📌 [회사개요] 탭 내부 핵심 수치 카드 & 개요 표 항목 추가·수정
+                          </h4>
+                          <p className="text-xs text-slate-500">
+                            회사개요 탭 상단 4대 핵심 수치 카드와 하단 회사개요 표의 추가 행을 자유롭게 추가·삭제할 수 있습니다.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const nextStats = [
+                              ...aboutForm.overviewStats,
+                              {
+                                id: `ast_${Date.now()}`,
+                                label: "신규 핵심지표",
+                                value: "100%",
+                                desc: "보조 설명 입력",
+                              },
+                            ];
+                            const nextCfg = { ...aboutForm, overviewStats: nextStats };
+                            setAboutForm(nextCfg);
+                            saveAboutConfig(companySlug, nextCfg);
+                          }}
+                          className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-extrabold text-white hover:bg-blue-500 cursor-pointer"
+                        >
+                          + 핵심 수치 카드 추가
+                        </button>
+                      </div>
+
+                      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                        {aboutForm.overviewStats.map((st, idx) => (
+                          <div
+                            key={st.id}
+                            className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 space-y-2"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-extrabold text-blue-700">
+                                수치 카드 #{idx + 1}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const nextStats = aboutForm.overviewStats.filter(
+                                    (x) => x.id !== st.id
+                                  );
+                                  const nextCfg = { ...aboutForm, overviewStats: nextStats };
+                                  setAboutForm(nextCfg);
+                                  saveAboutConfig(companySlug, nextCfg);
+                                }}
+                                className="text-xs font-bold text-red-600 hover:underline cursor-pointer"
+                              >
+                                삭제
+                              </button>
+                            </div>
+                            <input
+                              type="text"
+                              value={st.label}
+                              onChange={(e) => {
+                                const nextStats = aboutForm.overviewStats.map((x) =>
+                                  x.id === st.id ? { ...x, label: e.target.value } : x
+                                );
+                                const nextCfg = { ...aboutForm, overviewStats: nextStats };
+                                setAboutForm(nextCfg);
+                                saveAboutConfig(companySlug, nextCfg);
+                              }}
+                              placeholder="라벨 (예: 업력 및 노하우)"
+                              className="w-full rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold"
+                            />
+                            <input
+                              type="text"
+                              value={st.value}
+                              onChange={(e) => {
+                                const nextStats = aboutForm.overviewStats.map((x) =>
+                                  x.id === st.id ? { ...x, value: e.target.value } : x
+                                );
+                                const nextCfg = { ...aboutForm, overviewStats: nextStats };
+                                setAboutForm(nextCfg);
+                                saveAboutConfig(companySlug, nextCfg);
+                              }}
+                              placeholder="강조 값 (예: 28년+)"
+                              className="w-full rounded border border-blue-300 bg-white px-2.5 py-1 text-sm font-extrabold text-blue-700"
+                            />
+                            <input
+                              type="text"
+                              value={st.desc}
+                              onChange={(e) => {
+                                const nextStats = aboutForm.overviewStats.map((x) =>
+                                  x.id === st.id ? { ...x, desc: e.target.value } : x
+                                );
+                                const nextCfg = { ...aboutForm, overviewStats: nextStats };
+                                setAboutForm(nextCfg);
+                                saveAboutConfig(companySlug, nextCfg);
+                              }}
+                              placeholder="보조 설명"
+                              className="w-full rounded border border-slate-300 bg-white px-2.5 py-1 text-xs"
+                            />
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* 회사개요 표 추가 행 관리 */}
+                      <div className="border-t border-slate-100 pt-4 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-extrabold text-slate-800">
+                            📋 회사개요 표 추가 항목 ({(aboutForm.extraOverviewRows || []).length}개) — 예: 주요 거래처, 공장 면적, 임직원 수 등
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const nextRows = [
+                                ...(aboutForm.extraOverviewRows || []),
+                                {
+                                  id: `orow_${Date.now()}`,
+                                  label: "주요 거래처 / 인증현황",
+                                  value: "내용을 입력하세요",
+                                },
+                              ];
+                              const nextCfg = { ...aboutForm, extraOverviewRows: nextRows };
+                              setAboutForm(nextCfg);
+                              saveAboutConfig(companySlug, nextCfg);
+                            }}
+                            className="rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-700 cursor-pointer"
+                          >
+                            + 회사개요 표 항목(행) 추가
+                          </button>
+                        </div>
+                        {(aboutForm.extraOverviewRows || []).map((row) => (
+                          <div key={row.id} className="flex items-center gap-2">
+                            <input
+                              type="text"
+                              value={row.label}
+                              onChange={(e) => {
+                                const nextRows = (aboutForm.extraOverviewRows || []).map((r) =>
+                                  r.id === row.id ? { ...r, label: e.target.value } : r
+                                );
+                                const nextCfg = { ...aboutForm, extraOverviewRows: nextRows };
+                                setAboutForm(nextCfg);
+                                saveAboutConfig(companySlug, nextCfg);
+                              }}
+                              placeholder="항목명 (예: 공장 부지면적)"
+                              className="w-48 rounded border border-slate-300 px-3 py-1.5 text-xs font-bold"
+                            />
+                            <input
+                              type="text"
+                              value={row.value}
+                              onChange={(e) => {
+                                const nextRows = (aboutForm.extraOverviewRows || []).map((r) =>
+                                  r.id === row.id ? { ...r, value: e.target.value } : r
+                                );
+                                const nextCfg = { ...aboutForm, extraOverviewRows: nextRows };
+                                setAboutForm(nextCfg);
+                                saveAboutConfig(companySlug, nextCfg);
+                              }}
+                              placeholder="항목 내용 입력"
+                              className="flex-1 rounded border border-slate-300 px-3 py-1.5 text-xs"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const nextRows = (aboutForm.extraOverviewRows || []).filter(
+                                  (r) => r.id !== row.id
+                                );
+                                const nextCfg = { ...aboutForm, extraOverviewRows: nextRows };
+                                setAboutForm(nextCfg);
+                                saveAboutConfig(companySlug, nextCfg);
+                              }}
+                              className="rounded bg-red-50 px-2.5 py-1.5 text-xs font-bold text-red-600 hover:bg-red-100 cursor-pointer"
+                            >
+                              삭제
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* (3) 비전·핵심가치 탭 */}
+                  {selectedAboutSubTab === "vision" && (
+                    <div className="space-y-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                        <h4 className="text-sm font-extrabold text-slate-900">
+                          📌 [비전·핵심가치] 탭 슬로건 & 핵심가치 카드 추가·수정
+                        </h4>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const nextPillars = [
+                              ...aboutForm.visionPillars,
+                              {
+                                id: `vp_${Date.now()}`,
+                                step: `0${aboutForm.visionPillars.length + 1}`,
+                                title: "새로운 핵심가치 제목",
+                                desc: "핵심가치 상세 설명을 입력하세요.",
+                              },
+                            ];
+                            const nextCfg = { ...aboutForm, visionPillars: nextPillars };
+                            setAboutForm(nextCfg);
+                            saveAboutConfig(companySlug, nextCfg);
+                          }}
+                          className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-extrabold text-white hover:bg-blue-500 cursor-pointer"
+                        >
+                          + 핵심가치 카드 추가
+                        </button>
+                      </div>
+
+                      <div className="grid gap-4 sm:grid-cols-3">
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1">
+                            비전 상단 배지 (예: VISION 2030)
+                          </label>
+                          <input
+                            type="text"
+                            value={aboutForm.visionBadge}
+                            onChange={(e) => {
+                              const nextCfg = { ...aboutForm, visionBadge: e.target.value };
+                              setAboutForm(nextCfg);
+                              saveAboutConfig(companySlug, nextCfg);
+                            }}
+                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1">
+                            비전 메인 슬로건
+                          </label>
+                          <input
+                            type="text"
+                            value={settingsForm.visionSlogan}
+                            onChange={(e) =>
+                              setSettingsForm({
+                                ...settingsForm,
+                                visionSlogan: e.target.value,
+                              })
+                            }
+                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-700 mb-1">
+                            비전 서브 설명
+                          </label>
+                          <input
+                            type="text"
+                            value={settingsForm.visionSubSlogan}
+                            onChange={(e) =>
+                              setSettingsForm({
+                                ...settingsForm,
+                                visionSubSlogan: e.target.value,
+                              })
+                            }
+                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid gap-4 sm:grid-cols-3">
+                        {aboutForm.visionPillars.map((pillar, pIdx) => (
+                          <div
+                            key={pillar.id}
+                            className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-2"
+                          >
+                            <div className="flex items-center justify-between">
+                              <input
+                                type="text"
+                                value={pillar.step}
+                                onChange={(e) => {
+                                  const nextPillars = aboutForm.visionPillars.map((p) =>
+                                    p.id === pillar.id ? { ...p, step: e.target.value } : p
+                                  );
+                                  const nextCfg = { ...aboutForm, visionPillars: nextPillars };
+                                  setAboutForm(nextCfg);
+                                  saveAboutConfig(companySlug, nextCfg);
+                                }}
+                                className="w-16 rounded border border-slate-300 bg-white px-2 py-0.5 text-xs font-black text-blue-700"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const nextPillars = aboutForm.visionPillars.filter(
+                                    (p) => p.id !== pillar.id
+                                  );
+                                  const nextCfg = { ...aboutForm, visionPillars: nextPillars };
+                                  setAboutForm(nextCfg);
+                                  saveAboutConfig(companySlug, nextCfg);
+                                }}
+                                className="text-xs font-bold text-red-600 hover:underline cursor-pointer"
+                              >
+                                카드 삭제
+                              </button>
+                            </div>
+                            <input
+                              type="text"
+                              value={pillar.title}
+                              onChange={(e) => {
+                                const nextPillars = aboutForm.visionPillars.map((p) =>
+                                  p.id === pillar.id ? { ...p, title: e.target.value } : p
+                                );
+                                const nextCfg = { ...aboutForm, visionPillars: nextPillars };
+                                setAboutForm(nextCfg);
+                                saveAboutConfig(companySlug, nextCfg);
+                              }}
+                              placeholder={`핵심가치 #${pIdx + 1} 제목`}
+                              className="w-full rounded border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-bold"
+                            />
+                            <textarea
+                              rows={3}
+                              value={pillar.desc}
+                              onChange={(e) => {
+                                const nextPillars = aboutForm.visionPillars.map((p) =>
+                                  p.id === pillar.id ? { ...p, desc: e.target.value } : p
+                                );
+                                const nextCfg = { ...aboutForm, visionPillars: nextPillars };
+                                setAboutForm(nextCfg);
+                                saveAboutConfig(companySlug, nextCfg);
+                              }}
+                              placeholder="핵심가치 설명"
+                              className="w-full rounded border border-slate-300 bg-white px-2.5 py-1.5 text-xs"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* (4) 기업연혁 탭 */}
+                  {selectedAboutSubTab === "history" && (
+                    <div className="space-y-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                        <div>
+                          <h4 className="text-sm font-extrabold text-slate-900">
+                            📌 [기업연혁] 탭 시기별 그룹 & 연도별 연혁 추가·수정·삭제
+                          </h4>
+                          <p className="text-xs text-slate-500">
+                            시기 그룹(예: 2020 ~ 현재)을 추가하거나 각 시기 안의 세부 연혁(연월 + 내용)을 자유롭게 추가·삭제하세요.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const nextBlocks = [
+                              {
+                                id: `hb_${Date.now()}`,
+                                period: "2026 ~ 현재",
+                                phase: "글로벌 초정밀 제조 혁신기",
+                                events: [
+                                  {
+                                    id: `he_${Date.now()}_1`,
+                                    year: "2026. 10",
+                                    text: "새로운 주요 연혁 내용을 입력하세요",
+                                  },
+                                ],
+                              },
+                              ...aboutForm.historyBlocks,
+                            ];
+                            const nextCfg = { ...aboutForm, historyBlocks: nextBlocks };
+                            setAboutForm(nextCfg);
+                            saveAboutConfig(companySlug, nextCfg);
+                          }}
+                          className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-extrabold text-white hover:bg-blue-500 cursor-pointer"
+                        >
+                          + 새 연혁 시기 그룹 추가
+                        </button>
+                      </div>
+
+                      <div className="space-y-4">
+                        {aboutForm.historyBlocks.map((hBlock) => (
+                          <div
+                            key={hBlock.id}
+                            className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3"
+                          >
+                            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 pb-2.5">
+                              <div className="flex flex-wrap items-center gap-2 flex-1">
+                                <input
+                                  type="text"
+                                  value={hBlock.period}
+                                  onChange={(e) => {
+                                    const nextBlocks = aboutForm.historyBlocks.map((b) =>
+                                      b.id === hBlock.id ? { ...b, period: e.target.value } : b
+                                    );
+                                    const nextCfg = { ...aboutForm, historyBlocks: nextBlocks };
+                                    setAboutForm(nextCfg);
+                                    saveAboutConfig(companySlug, nextCfg);
+                                  }}
+                                  placeholder="시기 (예: 2020 ~ 현재)"
+                                  className="w-40 rounded border border-blue-300 bg-white px-2.5 py-1 text-xs font-extrabold text-blue-700"
+                                />
+                                <input
+                                  type="text"
+                                  value={hBlock.phase}
+                                  onChange={(e) => {
+                                    const nextBlocks = aboutForm.historyBlocks.map((b) =>
+                                      b.id === hBlock.id ? { ...b, phase: e.target.value } : b
+                                    );
+                                    const nextCfg = { ...aboutForm, historyBlocks: nextBlocks };
+                                    setAboutForm(nextCfg);
+                                    saveAboutConfig(companySlug, nextCfg);
+                                  }}
+                                  placeholder="시기 설명 (예: 스마트 정밀가공 고도화기)"
+                                  className="flex-1 min-w-[200px] rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold"
+                                />
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const nextBlocks = aboutForm.historyBlocks.map((b) =>
+                                      b.id === hBlock.id
+                                        ? {
+                                            ...b,
+                                            events: [
+                                              {
+                                                id: `he_${Date.now()}`,
+                                                year: "2026. 01",
+                                                text: "연혁 내용을 입력하세요",
+                                              },
+                                              ...b.events,
+                                            ],
+                                          }
+                                        : b
+                                    );
+                                    const nextCfg = { ...aboutForm, historyBlocks: nextBlocks };
+                                    setAboutForm(nextCfg);
+                                    saveAboutConfig(companySlug, nextCfg);
+                                  }}
+                                  className="rounded bg-slate-800 px-2.5 py-1 text-xs font-bold text-white hover:bg-slate-700 cursor-pointer"
+                                >
+                                  + 연혁 한 줄 추가
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const nextBlocks = aboutForm.historyBlocks.filter(
+                                      (b) => b.id !== hBlock.id
+                                    );
+                                    const nextCfg = { ...aboutForm, historyBlocks: nextBlocks };
+                                    setAboutForm(nextCfg);
+                                    saveAboutConfig(companySlug, nextCfg);
+                                  }}
+                                  className="rounded bg-red-100 px-2.5 py-1 text-xs font-bold text-red-700 hover:bg-red-200 cursor-pointer"
+                                >
+                                  그룹 삭제
+                                </button>
+                              </div>
+                            </div>
+
+                            <div className="space-y-2">
+                              {hBlock.events.map((ev) => (
+                                <div key={ev.id} className="flex items-center gap-2">
+                                  <input
+                                    type="text"
+                                    value={ev.year}
+                                    onChange={(e) => {
+                                      const nextBlocks = aboutForm.historyBlocks.map((b) =>
+                                        b.id === hBlock.id
+                                          ? {
+                                              ...b,
+                                              events: b.events.map((item) =>
+                                                item.id === ev.id
+                                                  ? { ...item, year: e.target.value }
+                                                  : item
+                                              ),
+                                            }
+                                          : b
+                                      );
+                                      const nextCfg = { ...aboutForm, historyBlocks: nextBlocks };
+                                      setAboutForm(nextCfg);
+                                      saveAboutConfig(companySlug, nextCfg);
+                                    }}
+                                    placeholder="2025. 11"
+                                    className="w-28 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-mono font-bold"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={ev.text}
+                                    onChange={(e) => {
+                                      const nextBlocks = aboutForm.historyBlocks.map((b) =>
+                                        b.id === hBlock.id
+                                          ? {
+                                              ...b,
+                                              events: b.events.map((item) =>
+                                                item.id === ev.id
+                                                  ? { ...item, text: e.target.value }
+                                                  : item
+                                              ),
+                                            }
+                                          : b
+                                      );
+                                      const nextCfg = { ...aboutForm, historyBlocks: nextBlocks };
+                                      setAboutForm(nextCfg);
+                                      saveAboutConfig(companySlug, nextCfg);
+                                    }}
+                                    placeholder="연혁 상세 내용"
+                                    className="flex-1 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs"
+                                  />
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const nextBlocks = aboutForm.historyBlocks.map((b) =>
+                                        b.id === hBlock.id
+                                          ? {
+                                              ...b,
+                                              events: b.events.filter(
+                                                (item) => item.id !== ev.id
+                                              ),
+                                            }
+                                          : b
+                                      );
+                                      const nextCfg = { ...aboutForm, historyBlocks: nextBlocks };
+                                      setAboutForm(nextCfg);
+                                      saveAboutConfig(companySlug, nextCfg);
+                                    }}
+                                    className="rounded bg-white border border-slate-200 px-2 py-1 text-xs font-bold text-red-600 hover:bg-red-50 cursor-pointer"
+                                  >
+                                    삭제
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* (5) 오시는 길 탭 */}
+                  {selectedAboutSubTab === "location" && (
+                    <div className="space-y-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                        <div>
+                          <h4 className="text-sm font-extrabold text-slate-900">
+                            📌 [오시는 길] 탭 교통편 및 방문 안내 항목 추가·수정·삭제
+                          </h4>
+                          <p className="text-xs text-slate-500">
+                            구글 지도 주소는 위 1번 주소 입력란과 자동 연동되며, 우측 교통편 안내 항목을 자유롭게 추가·수정할 수 있습니다.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const nextDirs = [
+                              ...aboutForm.directions,
+                              {
+                                id: `dir_${Date.now()}`,
+                                title: "새로운 교통편 안내 제목",
+                                desc: "상세 이동 경로 및 안내 설명을 입력하세요.",
+                              },
+                            ];
+                            const nextCfg = { ...aboutForm, directions: nextDirs };
+                            setAboutForm(nextCfg);
+                            saveAboutConfig(companySlug, nextCfg);
+                          }}
+                          className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-extrabold text-white hover:bg-blue-500 cursor-pointer"
+                        >
+                          + 교통편 안내 항목 추가
+                        </button>
+                      </div>
+
+                      <div className="space-y-3">
+                        {aboutForm.directions.map((dir) => (
+                          <div
+                            key={dir.id}
+                            className="rounded-xl border border-slate-200 bg-slate-50 p-3.5 space-y-2"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <input
+                                type="text"
+                                value={dir.title}
+                                onChange={(e) => {
+                                  const nextDirs = aboutForm.directions.map((d) =>
+                                    d.id === dir.id ? { ...d, title: e.target.value } : d
+                                  );
+                                  const nextCfg = { ...aboutForm, directions: nextDirs };
+                                  setAboutForm(nextCfg);
+                                  saveAboutConfig(companySlug, nextCfg);
+                                }}
+                                placeholder="교통편 제목 (예: 승용차·화물차 이용 시)"
+                                className="flex-1 rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-blue-700"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const nextDirs = aboutForm.directions.filter(
+                                    (d) => d.id !== dir.id
+                                  );
+                                  const nextCfg = { ...aboutForm, directions: nextDirs };
+                                  setAboutForm(nextCfg);
+                                  saveAboutConfig(companySlug, nextCfg);
+                                }}
+                                className="rounded bg-red-50 px-2.5 py-1 text-xs font-bold text-red-600 hover:bg-red-100 cursor-pointer"
+                              >
+                                삭제
+                              </button>
+                            </div>
+                            <textarea
+                              rows={2}
+                              value={dir.desc}
+                              onChange={(e) => {
+                                const nextDirs = aboutForm.directions.map((d) =>
+                                  d.id === dir.id ? { ...d, desc: e.target.value } : d
+                                );
+                                const nextCfg = { ...aboutForm, directions: nextDirs };
+                                setAboutForm(nextCfg);
+                                saveAboutConfig(companySlug, nextCfg);
+                              }}
+                              placeholder="상세 경로 안내"
+                              className="w-full rounded border border-slate-300 bg-white px-2.5 py-1.5 text-xs"
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* (6) 관리자가 새로 추가한 커스텀 회사소개 탭인 경우 */}
+                  {!["greeting", "overview", "vision", "history", "location"].includes(
+                    selectedAboutSubTab
+                  ) && (
+                    <div className="rounded-xl border border-indigo-200 bg-indigo-50/50 p-4 text-xs text-indigo-950 space-y-1.5">
+                      <p className="font-extrabold text-sm">
+                        ✨ 신규 생성 탭 [{aboutForm.tabs.find((t) => t.id === selectedAboutSubTab)?.label}] 전용 화면 조립 안내
+                      </p>
+                      <p>
+                        아래 <strong>만능 홈페이지 블록 빌더</strong>에서 현재 탭(<strong>{aboutForm.tabs.find((t) => t.id === selectedAboutSubTab)?.label}</strong>)이 자동 선택되어 있습니다. 텍스트, 멀티 이미지(1x1~4x1), 표, 카드#, 타임라인 등 원하는 블록을 추가하시면 이 탭을 클릭했을 때만 전용으로 표시됩니다!
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -2403,7 +3134,7 @@ export default function AdminClient({ slug }: { slug: string }) {
           </div>
         )}
 
-        {/* 모든 메뉴 공통: 내 입맛대로 자유 블록 추가·제거 빌더 (작은 배너 · 카드# · 이미지) */}
+        {/* 모든 메뉴 공통: 내 입맛대로 자유 블록 추가·제거 빌더 (하위 탭별 개별 추가·수정 연동) */}
         <AdminPageBlockBuilder
           slug={companySlug}
           page={
@@ -2413,6 +3144,18 @@ export default function AdminClient({ slug }: { slug: string }) {
               ? "support"
               : (activeTab as PageKey)
           }
+          activeSubTab={
+            activeTab === "settings"
+              ? selectedAboutSubTab
+              : hasSubTabsManager(activeTab)
+              ? subCategory || "ALL"
+              : undefined
+          }
+          onSelectSubTab={(sub) => {
+            if (activeTab === "settings" && sub !== "ALL") {
+              setSelectedAboutSubTab(sub);
+            }
+          }}
         />
       </div>
     </div>

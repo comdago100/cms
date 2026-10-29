@@ -143,7 +143,7 @@ export default function TechnologyPage() {
       )}
 
       {/* 상단 커스텀 블록 (작은 배너 · 카드# · 이미지) */}
-      <CustomPageBlocks page="technology" position="top" />
+      <CustomPageBlocks page="technology" position="top" subTab={selectedCategory} />
 
       {!hiddenSections.includes("tech_cards") && (
       <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
@@ -210,7 +210,7 @@ export default function TechnologyPage() {
       )}
 
       {/* 하단 커스텀 블록 (작은 배너 · 카드# · 이미지) */}
-      <CustomPageBlocks page="technology" position="bottom" />
+      <CustomPageBlocks page="technology" position="bottom" subTab={selectedCategory} />
 
       {zoomImage && (
         <ImageLightbox

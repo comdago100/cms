@@ -141,7 +141,7 @@ export default function ProductsPage() {
       )}
 
       {/* 상단 커스텀 블록 (작은 배너 · 카드# · 이미지) */}
-      <CustomPageBlocks page="products" position="top" />
+      <CustomPageBlocks page="products" position="top" subTab={selectedCategory} />
 
       {!hiddenSections.includes("prod_cards") && (
       <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
@@ -201,7 +201,7 @@ export default function ProductsPage() {
       )}
 
       {/* 하단 커스텀 블록 (작은 배너 · 카드# · 이미지) */}
-      <CustomPageBlocks page="products" position="bottom" />
+      <CustomPageBlocks page="products" position="bottom" subTab={selectedCategory} />
 
       {zoomImage && (
         <ImageLightbox

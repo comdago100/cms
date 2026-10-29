@@ -13,11 +13,15 @@ import {
   getHiddenSkeletonSections,
   toggleSkeletonSection,
   uploadMediaFileToUrl,
+  getAboutConfig,
+  getCategoryTabsConfig,
 } from "@/lib/cms";
 
 export interface AdminPageBlockBuilderProps {
   slug: string;
   page: PageKey;
+  activeSubTab?: string;
+  onSelectSubTab?: (subTab: string) => void;
 }
 
 const PAGE_LABELS: Record<PageKey, { label: string; href: string }> = {
@@ -98,9 +102,16 @@ const BLOCK_TYPE_BADGE: Record<
   },
 };
 
-export function AdminPageBlockBuilder({ slug, page }: AdminPageBlockBuilderProps) {
+export function AdminPageBlockBuilder({
+  slug,
+  page,
+  activeSubTab,
+  onSelectSubTab,
+}: AdminPageBlockBuilderProps) {
   const [blocks, setBlocks] = useState<CustomPageBlock[]>([]);
   const [hiddenSkeletonIds, setHiddenSkeletonIds] = useState<string[]>([]);
+  const [subTabOptions, setSubTabOptions] = useState<{ id: string; label: string }[]>([]);
+  const [selectedSubTab, setSelectedSubTab] = useState<string>("ALL");
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   const pageInfo = PAGE_LABELS[page] || { label: page, href: "/" };
@@ -109,11 +120,34 @@ export function AdminPageBlockBuilder({ slug, page }: AdminPageBlockBuilderProps
     const load = () => {
       setBlocks(getCustomPageBlocks(slug, page));
       setHiddenSkeletonIds(getHiddenSkeletonSections(slug));
+
+      if (page === "about") {
+        const aboutCfg = getAboutConfig(slug);
+        setSubTabOptions(aboutCfg.tabs);
+      } else if (page === "facilities" || page === "products" || page === "technology") {
+        const catCfg = getCategoryTabsConfig(slug, page);
+        setSubTabOptions(catCfg.tabs.map((tName) => ({ id: tName, label: tName })));
+      } else {
+        setSubTabOptions([]);
+      }
     };
     load();
     window.addEventListener("cms-updated", load);
     return () => window.removeEventListener("cms-updated", load);
   }, [slug, page]);
+
+  useEffect(() => {
+    if (activeSubTab !== undefined) {
+      setSelectedSubTab(activeSubTab);
+    } else {
+      setSelectedSubTab("ALL");
+    }
+  }, [activeSubTab, page]);
+
+  const handleChooseSubTab = (subId: string) => {
+    setSelectedSubTab(subId);
+    if (onSelectSubTab) onSelectSubTab(subId);
+  };
 
   const notify = (msg: string) => {
     setToastMsg(msg);
@@ -373,9 +407,16 @@ export function AdminPageBlockBuilder({ slug, page }: AdminPageBlockBuilderProps
       };
     }
 
+    const targetSubTab = subTabOptions.length > 0 ? selectedSubTab : "ALL";
+    newBlock.subTab = targetSubTab;
+    const subTabLabel =
+      targetSubTab === "ALL"
+        ? "모든 탭 공통"
+        : subTabOptions.find((o) => o.id === targetSubTab)?.label || targetSubTab;
+
     commitPageBlocks(
       [...blocks, newBlock],
-      `✅ [${pageInfo.label}] 페이지에 '${BLOCK_TYPE_BADGE[type].label}' 블록이 추가되었습니다!`
+      `✅ [${pageInfo.label} > ${subTabLabel}] 영역에 '${BLOCK_TYPE_BADGE[type].label}' 블록이 추가되었습니다!`
     );
   };
 
@@ -558,6 +599,56 @@ export function AdminPageBlockBuilder({ slug, page }: AdminPageBlockBuilderProps
           )}
         </div>
 
+        {/* 하위 탭(예: 회사소개 탭들, 설비/제품/기술 탭들) 별도 선택 바 */}
+        {subTabOptions.length > 0 && (
+          <div className="mb-5 rounded-xl border border-indigo-200 bg-white p-4 shadow-2xs">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-2.5">
+              <span className="text-xs font-extrabold text-indigo-950">
+                📂 어느 탭 안에 블록을 추가·수정하시겠습니까? (각 탭별로 별도 추가·수정이 가능합니다)
+              </span>
+              <span className="text-[11px] font-bold text-indigo-600">
+                현재 선택:{" "}
+                {selectedSubTab === "ALL"
+                  ? "🌐 모든 탭 공통 노출"
+                  : `📌 [${
+                      subTabOptions.find((o) => o.id === selectedSubTab)?.label || selectedSubTab
+                    }] 탭 전용`}
+              </span>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => handleChooseSubTab("ALL")}
+                className={`px-3.5 py-2 rounded-lg text-xs font-extrabold transition-all cursor-pointer border ${
+                  selectedSubTab === "ALL"
+                    ? "bg-slate-900 text-white border-slate-900 shadow-xs"
+                    : "bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100"
+                }`}
+              >
+                🌐 모든 탭 공통 ({blocks.filter((b) => !b.subTab || b.subTab === "ALL").length})
+              </button>
+              {subTabOptions.map((opt) => {
+                const count = blocks.filter((b) => b.subTab === opt.id).length;
+                const isSelected = selectedSubTab === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => handleChooseSubTab(opt.id)}
+                    className={`px-3.5 py-2 rounded-lg text-xs font-extrabold transition-all cursor-pointer border ${
+                      isSelected
+                        ? "bg-blue-600 text-white border-blue-700 shadow-xs ring-2 ring-blue-200"
+                        : "bg-white text-slate-700 border-slate-200 hover:bg-blue-50 hover:border-blue-300"
+                    }`}
+                  >
+                    📌 {opt.label} 탭 안 ({count})
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* 블록 추가 버튼 그리드 (9종) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
           <button
@@ -688,13 +779,31 @@ export function AdminPageBlockBuilder({ slug, page }: AdminPageBlockBuilderProps
         </div>
 
         {/* 현재 추가된 블록 리스트 */}
-        {blocks.length === 0 ? (
-          <div className="mt-6 bg-white/90 border border-dashed border-slate-300 rounded-xl p-8 text-center text-slate-500 text-sm">
-            현재 <strong>[{pageInfo.label}]</strong> 페이지에 추가된 커스텀 블록이 없습니다. 위 9가지 기능 버튼 중 원하는 항목을 눌러 페이지를 직접 조립해 보세요!
-          </div>
-        ) : (
+        {(() => {
+          const visibleBlocks =
+            subTabOptions.length === 0
+              ? blocks
+              : blocks.filter((b) => {
+                  const bSub = b.subTab || "ALL";
+                  return selectedSubTab === "ALL" ? bSub === "ALL" : bSub === selectedSubTab;
+                });
+
+          if (visibleBlocks.length === 0) {
+            const currentTabLabel =
+              selectedSubTab === "ALL"
+                ? "모든 탭 공통"
+                : subTabOptions.find((o) => o.id === selectedSubTab)?.label || selectedSubTab;
+            return (
+              <div className="mt-6 bg-white/90 border border-dashed border-slate-300 rounded-xl p-8 text-center text-slate-500 text-sm">
+                현재 <strong>[{pageInfo.label} &gt; {currentTabLabel}]</strong> 영역에 추가된 커스텀 블록이 없습니다. 위 9가지 기능 버튼 중 원하는 항목을 눌러 이 탭 안에 블록을 바로 추가해 보세요!
+              </div>
+            );
+          }
+
+          return (
           <div className="mt-6 space-y-6">
-            {blocks.map((block, bIdx) => {
+            {visibleBlocks.map((block) => {
+              const bIdx = blocks.findIndex((x) => x.id === block.id);
               const badgeInfo = BLOCK_TYPE_BADGE[block.type] || {
                 label: block.type,
                 colorClass: "bg-slate-700 text-white",
@@ -717,6 +826,24 @@ export function AdminPageBlockBuilder({ slug, page }: AdminPageBlockBuilderProps
                       >
                         {badgeInfo.label}
                       </span>
+                      {subTabOptions.length > 0 && (
+                        <select
+                          value={block.subTab || "ALL"}
+                          onChange={(e) =>
+                            handleUpdateBlock(block.id, {
+                              subTab: e.target.value,
+                            })
+                          }
+                          className="rounded-lg border border-indigo-300 bg-indigo-50/60 px-2.5 py-1 text-xs font-extrabold text-indigo-800"
+                        >
+                          <option value="ALL">🌐 모든 탭 공통 노출</option>
+                          {subTabOptions.map((opt) => (
+                            <option key={opt.id} value={opt.id}>
+                              📌 [{opt.label}] 탭 전용 노출
+                            </option>
+                          ))}
+                        </select>
+                      )}
                       <select
                         value={block.position || "bottom"}
                         onChange={(e) =>
@@ -726,8 +853,8 @@ export function AdminPageBlockBuilder({ slug, page }: AdminPageBlockBuilderProps
                         }
                         className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-xs font-bold text-slate-700"
                       >
-                        <option value="top">📍 페이지 상단 영역에 배치</option>
-                        <option value="bottom">📍 페이지 하단 영역에 배치</option>
+                        <option value="top">📍 탭 상단 영역에 배치</option>
+                        <option value="bottom">📍 탭 하단 영역에 배치</option>
                       </select>
                     </div>
 
@@ -2084,7 +2211,8 @@ export function AdminPageBlockBuilder({ slug, page }: AdminPageBlockBuilderProps
               );
             })}
           </div>
-        )}
+          );
+        })()}
       </div>
     </div>
   );
