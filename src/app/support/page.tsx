@@ -72,6 +72,9 @@ export default function SupportPage() {
 
   const displayAddress = locale === "KR" ? settings.address : t.company.address;
   const displayHours = locale === "KR" ? settings.operatingHours : t.company.operatingHours;
+  // 관리자가 입력한 문구는 한국어(KR)에서만 우선 적용하고, 비어 있으면 기본 다국어 문구 사용
+  const pick = (custom: string, fallback: string) =>
+    locale === "KR" && custom && custom.trim() ? custom : fallback;
 
   return (
     <div className="bg-slate-50">
@@ -131,8 +134,8 @@ export default function SupportPage() {
           {!hiddenSections.includes("sup_contact") && (
           <div className="space-y-6 rounded-2xl border border-slate-200 bg-white p-6 shadow-xs">
             <div>
-              <h2 className="text-lg font-bold text-slate-900">{t.support.contactTitle}</h2>
-              <p className="mt-1 text-xs text-slate-500">{t.support.contactSub}</p>
+              <h2 className="text-lg font-bold text-slate-900">{pick(supportConfig.texts.contactTitle, t.support.contactTitle)}</h2>
+              <p className="mt-1 text-xs text-slate-500">{pick(supportConfig.texts.contactSub, t.support.contactSub)}</p>
             </div>
             <dl className="space-y-4 text-sm">
               <div>
@@ -166,7 +169,10 @@ export default function SupportPage() {
               hiddenSections.includes("sup_contact") ? "lg:col-span-3" : "lg:col-span-2"
             } rounded-2xl border border-slate-200 bg-white p-6 shadow-xs sm:p-8`}
           >
-            <h2 className="text-lg font-bold text-slate-900">{t.support.formTitle}</h2>
+            <h2 className="text-lg font-bold text-slate-900">{pick(supportConfig.texts.formTitle, t.support.formTitle)}</h2>
+            {supportConfig.texts.formIntro && locale === "KR" && (
+              <p className="mt-1.5 text-sm text-slate-600 whitespace-pre-line">{supportConfig.texts.formIntro}</p>
+            )}
             <form onSubmit={handleSubmit} className="mt-6 space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
@@ -242,7 +248,7 @@ export default function SupportPage() {
                 type="submit"
                 className="w-full rounded-md bg-blue-600 px-6 py-3 text-sm font-semibold text-white hover:bg-blue-500 transition-colors cursor-pointer sm:w-auto"
               >
-                {t.support.form.submitBtn}
+                {pick(supportConfig.texts.submitBtn, t.support.form.submitBtn)}
               </button>
             </form>
           </div>
@@ -260,10 +266,10 @@ export default function SupportPage() {
                 DOWNLOAD ARCHIVE
               </span>
               <h2 className="text-2xl font-bold text-slate-900">
-                이력서 양식 및 주요 참고자료 다운로드
+                {supportConfig.texts.downloadsTitle}
               </h2>
               <p className="mt-1 text-sm text-slate-600">
-                입사지원서(이력서) 양식, 회사소개서, 설비 및 제품 참고자료를 클릭하여 바로 다운로드하실 수 있습니다.
+                {supportConfig.texts.downloadsDesc}
               </p>
             </div>
 

@@ -491,9 +491,32 @@ export interface SupportSubTabItem {
   label: string;
 }
 
+export interface SupportTexts {
+  // 빈 문자열이면 기본(다국어) 문구를 사용합니다.
+  contactTitle: string;
+  contactSub: string;
+  formTitle: string;
+  formIntro: string;
+  submitBtn: string;
+  downloadsTitle: string;
+  downloadsDesc: string;
+}
+
+export const defaultSupportTexts: SupportTexts = {
+  contactTitle: "",
+  contactSub: "",
+  formTitle: "",
+  formIntro: "",
+  submitBtn: "",
+  downloadsTitle: "이력서 양식 및 주요 참고자료 다운로드",
+  downloadsDesc:
+    "입사지원서(이력서) 양식, 회사소개서, 설비 및 제품 참고자료를 클릭하여 바로 다운로드하실 수 있습니다.",
+};
+
 export interface SupportConfig {
   tabs: SupportSubTabItem[];
   attachments: CustomAttachmentItem[];
+  texts: SupportTexts;
 }
 
 const SUPPORT_CONFIG_KEY_PREFIX = "noksan_support_config_v1_";
@@ -503,6 +526,7 @@ function createSampleTextDataUrl(content: string): string {
 }
 
 export const defaultSupportConfig: SupportConfig = {
+  texts: defaultSupportTexts,
   tabs: [
     { id: "inquiry", label: "온라인 견적·상담 문의" },
     { id: "downloads", label: "자료실 · 양식 다운로드" },
@@ -570,6 +594,7 @@ export function getSupportConfig(slug = "noksan"): SupportConfig {
       attachments: Array.isArray(parsed.attachments)
         ? parsed.attachments
         : defaultSupportConfig.attachments,
+      texts: { ...defaultSupportTexts, ...(parsed.texts || {}) },
     };
   } catch {
     return defaultSupportConfig;

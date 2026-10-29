@@ -53,6 +53,7 @@ import {
   triggerBrowserDownload,
 } from "@/lib/cms";
 import { AdminPageBlockBuilder } from "@/components/AdminPageBlockBuilder";
+import { AdminSessionBar } from "@/components/AdminSessionBar";
 
 type AdminMainTab = "home" | "settings" | CmsCategory | "inquiries";
 
@@ -656,6 +657,7 @@ export default function AdminClient({ slug }: { slug: string }) {
   return (
     <div className="min-h-screen bg-slate-100 py-10 px-4 sm:px-6 xl:pr-[350px] 2xl:pr-[370px]">
       <div className="mx-auto max-w-6xl">
+        <AdminSessionBar slug={companySlug} />
         {/* 상단 헤더 배너 */}
         <div className="flex flex-col justify-between gap-4 rounded-2xl bg-slate-900 p-6 text-white sm:flex-row sm:items-center sm:p-8">
           <div>
@@ -3201,8 +3203,154 @@ export default function AdminClient({ slug }: { slug: string }) {
                 </div>
               </div>
 
-              {/* (B) 이력서 양식 · 참고자료 등 방문자 다운로드용 첨부파일 업로드 관리 */}
+              {/* 선택한 탭 안내 */}
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs font-bold text-amber-900">
+                👉 현재 선택된 탭 [{supportForm.tabs.find((t) => t.id === selectedSupportSubTab)?.label || selectedSupportSubTab}]의 내용만 아래에 표시됩니다. 다른 탭을 편집하려면 위 탭 버튼을 눌러 전환하세요.
+              </div>
+
+              {/* (A-2) 온라인 견적·상담 문의 탭 내용 직접 수정 (제목·안내문구·연락처·버튼 문구) */}
+              {selectedSupportSubTab === "inquiry" && (
+                <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-5 space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
+                    <div>
+                      <h3 className="text-sm font-extrabold text-slate-900">
+                        ✏️ [온라인 견적·상담 문의] 탭 화면 내용 수정
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        비워 두면 기본 문구가 표시됩니다. 연락처 정보는 방문자 화면 좌측 안내 박스에 그대로 표시됩니다.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        saveSiteSettings(companySlug, settingsForm);
+                        handleSaveSupportConfig();
+                      }}
+                      className="rounded-xl bg-blue-600 px-4 py-2 text-xs font-extrabold text-white hover:bg-blue-500 cursor-pointer"
+                    >
+                      💾 문의 탭 내용 저장
+                    </button>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {(
+                      [
+                        ["contactTitle", "좌측 연락처 박스 제목", "예: 직통 연락처 안내"],
+                        ["contactSub", "좌측 연락처 박스 설명", "예: 급하신 용무는 전화 또는 팩스로 연락 부탁드립니다."],
+                        ["formTitle", "우측 문의 폼 제목", "예: 온라인 견적·상담 문의"],
+                        ["submitBtn", "문의 등록 버튼 문구", "예: 문의 등록하기"],
+                      ] as const
+                    ).map(([key, label, ph]) => (
+                      <div key={key}>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">{label}</label>
+                        <input
+                          type="text"
+                          value={supportForm.texts[key]}
+                          onChange={(e) =>
+                            setSupportForm({
+                              ...supportForm,
+                              texts: { ...supportForm.texts, [key]: e.target.value },
+                            })
+                          }
+                          placeholder={ph}
+                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                        />
+                      </div>
+                    ))}
+                    <div className="sm:col-span-2">
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        문의 폼 상단 추가 안내 문구 (선택, 줄바꿈 가능)
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={supportForm.texts.formIntro}
+                        onChange={(e) =>
+                          setSupportForm({
+                            ...supportForm,
+                            texts: { ...supportForm.texts, formIntro: e.target.value },
+                          })
+                        }
+                        placeholder="예: 도면 첨부는 대표 이메일로 보내주시면 24시간 이내 회신드립니다."
+                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 border-t border-slate-200 pt-4">
+                    {(
+                      [
+                        ["phone", "대표전화"],
+                        ["fax", "팩스번호"],
+                        ["email", "이메일"],
+                        ["operatingHours", "업무시간"],
+                      ] as const
+                    ).map(([key, label]) => (
+                      <div key={key}>
+                        <label className="block text-xs font-semibold text-slate-700 mb-1">{label}</label>
+                        <input
+                          type="text"
+                          value={settingsForm[key]}
+                          onChange={(e) =>
+                            setSettingsForm({ ...settingsForm, [key]: e.target.value })
+                          }
+                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                        />
+                      </div>
+                    ))}
+                    <div className="sm:col-span-2 lg:col-span-4">
+                      <label className="block text-xs font-semibold text-slate-700 mb-1">
+                        회사 주소 (오시는 길 / 연락처 박스에 표시)
+                      </label>
+                      <input
+                        type="text"
+                        value={settingsForm.address}
+                        onChange={(e) =>
+                          setSettingsForm({ ...settingsForm, address: e.target.value })
+                        }
+                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* (B) 이력서 양식 · 참고자료 등 방문자 다운로드용 첨부파일 업로드 관리 — [자료실] 탭 선택 시에만 표시 */}
+              {selectedSupportSubTab === "downloads" && (
               <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-5 space-y-4">
+                <div className="grid gap-3 sm:grid-cols-2 border-b border-slate-200 pb-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      자료실 탭 제목
+                    </label>
+                    <input
+                      type="text"
+                      value={supportForm.texts.downloadsTitle}
+                      onChange={(e) =>
+                        setSupportForm({
+                          ...supportForm,
+                          texts: { ...supportForm.texts, downloadsTitle: e.target.value },
+                        })
+                      }
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-bold"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">
+                      자료실 탭 안내 설명
+                    </label>
+                    <input
+                      type="text"
+                      value={supportForm.texts.downloadsDesc}
+                      onChange={(e) =>
+                        setSupportForm({
+                          ...supportForm,
+                          texts: { ...supportForm.texts, downloadsDesc: e.target.value },
+                        })
+                      }
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+                    />
+                  </div>
+                </div>
                 <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
                   <div>
                     <h3 className="text-sm font-extrabold text-slate-900">
@@ -3369,9 +3517,11 @@ export default function AdminClient({ slug }: { slug: string }) {
                   ))}
                 </div>
               </div>
+              )}
             </div>
 
-            {/* (C) 온라인 견적·상담 문의 접수 내역 */}
+            {/* (C) 온라인 견적·상담 문의 접수 내역 — [온라인 견적·상담 문의] 탭 선택 시에만 표시 */}
+            {selectedSupportSubTab === "inquiry" && (
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xs sm:p-8">
               <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-4">
                 <div>
@@ -3455,6 +3605,7 @@ export default function AdminClient({ slug }: { slug: string }) {
                 </div>
               )}
             </div>
+            )}
           </div>
         )}
 

@@ -34,3 +34,25 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## 관리자 로그인 · 멀티 테넌트 권한 제어
+
+`/[slug]/admin` 접근은 `src/proxy.ts`(Next.js 16 proxy, 구 middleware)에서 서버 측으로 통제합니다.
+
+| 계정 | 접근 범위 |
+| --- | --- |
+| 일반 기업 관리자 | `tenant_users` 에 매핑된 slug 의 `/[slug]/admin` 만 |
+| 최고 관리자(Master) | 모든 `/[slug]/admin` 프리패스 (`profiles.role = 'super_admin'` 또는 `MASTER_ADMIN_EMAILS` 포함 이메일) |
+| 미로그인 / 매핑 없음 | `/login` 으로 차단 (Supabase 미설정 시에도 차단, fail-closed) |
+
+설정 방법
+1. Supabase SQL Editor 에서 `supabase/migrations/20261029_tenant_auth.sql` 실행
+2. `.env.local` 에 설정
+   ```
+   NEXT_PUBLIC_SUPABASE_URL=...
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+   MASTER_ADMIN_EMAILS=master@example.com   # 서버 전용, 콤마로 여러 개 가능
+   ```
+3. 기업 관리자 연결: `insert into public.tenant_users (user_id, tenant_slug) select id, 'a-company' from auth.users where email = '...';`
+
+> 서버 런타임이 필요하므로 `output: "export"`(정적 내보내기)는 제거되었습니다.
