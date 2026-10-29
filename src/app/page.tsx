@@ -216,7 +216,7 @@ export default function HomePage() {
             <p className="mt-2 text-sm text-slate-600">{coreSubtitle}</p>
           </div>
 
-          <div className="mt-10 grid gap-6 sm:grid-cols-3">
+          <div className="mt-10 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {displayCores.map((item) => (
               <div
                 key={item.id}

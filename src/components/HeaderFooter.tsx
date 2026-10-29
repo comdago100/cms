@@ -20,6 +20,8 @@ export function Header() {
 
   const displayName = locale === "KR" ? settings.name : t.company.name;
 
+  const hiddenMenus = settings.hiddenMenus || [];
+
   const navItems = [
     { label: t.nav.home, href: "/" },
     { label: t.nav.about, href: "/about" },
@@ -28,7 +30,7 @@ export function Header() {
     { label: t.nav.technology, href: "/technology" },
     { label: t.nav.ir, href: "/ir" },
     { label: t.nav.support, href: "/support" },
-  ];
+  ].filter((item) => item.href === "/" || !hiddenMenus.includes(item.href));
 
   return (
     <header className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur">
@@ -102,6 +104,8 @@ export function Footer() {
   const displayCeo = locale === "KR" ? settings.ceo : t.company.ceo;
   const displayAddr = locale === "KR" ? settings.address : t.company.address;
 
+  const hiddenMenus = settings.hiddenMenus || [];
+
   const navItems = [
     { label: t.nav.home, href: "/" },
     { label: t.nav.about, href: "/about" },
@@ -110,7 +114,7 @@ export function Footer() {
     { label: t.nav.technology, href: "/technology" },
     { label: t.nav.ir, href: "/ir" },
     { label: t.nav.support, href: "/support" },
-  ];
+  ].filter((item) => item.href === "/" || !hiddenMenus.includes(item.href));
 
   return (
     <footer className="border-t border-slate-200 bg-slate-900 text-slate-400">

@@ -21,11 +21,13 @@ import {
   deleteSupportInquiry,
   HomeConfig,
   HomeBannerSlide,
+  HomeCoreItem,
   defaultHomeConfig,
   getHomeConfig,
   saveHomeConfig,
   resetHomeConfig,
   uploadMediaFileToUrl,
+  makeSvgDataUrl,
   FacilityTabsConfig,
   defaultFacilityTabsConfig,
   defaultCategoryTabsConfig,
@@ -38,6 +40,15 @@ import {
 } from "@/lib/cms";
 
 type AdminMainTab = "home" | "settings" | CmsCategory | "inquiries";
+
+const GNB_MENU_ITEMS: { href: string; label: string; note?: string }[] = [
+  { href: "/about", label: "회사소개" },
+  { href: "/facilities", label: "설비현황" },
+  { href: "/products", label: "제품소개" },
+  { href: "/technology", label: "기술정보" },
+  { href: "/ir", label: "투자정보", note: "비상장 기업 등 불필요 시 사용안함 가능" },
+  { href: "/support", label: "고객지원" },
+];
 
 const CATEGORY_TABS: {
   id: CmsCategory;
@@ -499,6 +510,60 @@ export default function AdminClient({ slug }: { slug: string }) {
     }
   };
 
+  const handleAddCoreCard = () => {
+    const nextNum = homeForm.cores.length + 1;
+    const newCore: HomeCoreItem = {
+      id: `core_${Date.now()}`,
+      title: `신규 핵심 역량 #${nextNum}`,
+      desc: "핵심 역량 또는 주요 사업 분야에 대한 상세 설명을 입력해 주세요.",
+      imageUrl: makeSvgDataUrl(
+        `신규 핵심 역량 #${nextNum}`,
+        "PRECISION MANUFACTURING SOLUTION",
+        nextNum % 2 === 0 ? "indigo" : "blue"
+      ),
+    };
+    setHomeForm({
+      ...homeForm,
+      cores: [...homeForm.cores, newCore],
+    });
+  };
+
+  const handleRemoveCoreCard = (idx: number) => {
+    if (homeForm.cores.length <= 1) {
+      alert("최소 1개의 핵심역량 카드는 유지되어야 합니다.");
+      return;
+    }
+    if (!confirm(`핵심역량 카드 #${idx + 1} 항목을 삭제하시겠습니까?`)) return;
+    setHomeForm({
+      ...homeForm,
+      cores: homeForm.cores.filter((_, i) => i !== idx),
+    });
+  };
+
+  const handleMoveCoreCard = (idx: number, direction: -1 | 1) => {
+    const targetIdx = idx + direction;
+    if (targetIdx < 0 || targetIdx >= homeForm.cores.length) return;
+    const nextCores = [...homeForm.cores];
+    const temp = nextCores[idx];
+    nextCores[idx] = nextCores[targetIdx];
+    nextCores[targetIdx] = temp;
+    setHomeForm({ ...homeForm, cores: nextCores });
+  };
+
+  const handleToggleMenuVisibility = (href: string) => {
+    const currentHidden = settingsForm.hiddenMenus || [];
+    const isCurrentlyHidden = currentHidden.includes(href);
+    const nextHidden = isCurrentlyHidden
+      ? currentHidden.filter((h) => h !== href)
+      : [...currentHidden, href];
+    const updatedSettings: SiteSettings = {
+      ...settingsForm,
+      hiddenMenus: nextHidden,
+    };
+    setSettingsForm(updatedSettings);
+    saveSiteSettings(companySlug, updatedSettings);
+  };
+
   const previewHref =
     activeTab === "home"
       ? "/"
@@ -530,6 +595,67 @@ export default function AdminClient({ slug }: { slug: string }) {
           >
             현재 메뉴 화면 보러가기 ({previewHref}) ↗
           </Link>
+        </div>
+
+        {/* 최상단 메뉴(GNB) 사용함 / 사용안함(숨기기) 원클릭 컨트롤 바 */}
+        <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-xs sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+            <div>
+              <h2 className="text-sm font-bold text-slate-900">
+                🧭 홈페이지 최상단 메뉴(GNB) 표시 / 숨김(사용안함) 설정
+              </h2>
+              <p className="text-xs text-slate-500">
+                비상장 기업이라 <strong>투자정보</strong>가 필요 없거나 특정 메뉴를 숨기고 싶을 때 버튼을 눌러 <strong>[🚫 사용안함(숨김)]</strong>으로 전환하면 상단·하단 메뉴에서 즉시 숨겨집니다.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
+            {GNB_MENU_ITEMS.map((menu) => {
+              const isHidden = (settingsForm.hiddenMenus || []).includes(menu.href);
+              return (
+                <div
+                  key={menu.href}
+                  className={`flex flex-col justify-between rounded-xl border p-3 transition-all ${
+                    isHidden
+                      ? "border-slate-200 bg-slate-100/80 opacity-75"
+                      : "border-blue-200 bg-blue-50/40"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-1">
+                    <span
+                      className={`text-xs font-bold ${
+                        isHidden ? "text-slate-500 line-through" : "text-slate-900"
+                      }`}
+                    >
+                      {menu.label}
+                    </span>
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                        isHidden
+                          ? "bg-slate-200 text-slate-600"
+                          : "bg-emerald-100 text-emerald-700"
+                      }`}
+                    >
+                      {isHidden ? "숨김중" : "표시중"}
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleToggleMenuVisibility(menu.href)}
+                    className={`mt-2.5 w-full rounded-lg py-1.5 text-xs font-bold transition-colors cursor-pointer ${
+                      isHidden
+                        ? "border border-slate-300 bg-white text-slate-700 hover:bg-blue-600 hover:text-white hover:border-blue-600"
+                        : "bg-blue-600 text-white hover:bg-slate-700"
+                    }`}
+                  >
+                    {isHidden ? "🚫 사용안함 (클릭시 켜기)" : "✅ 사용함 (클릭시 숨김)"}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {/* 7대 전체 메뉴 관리 탭 */}
@@ -910,11 +1036,26 @@ export default function AdminClient({ slug }: { slug: string }) {
               ))}
             </div>
 
-            {/* 2. 홈 화면 핵심 사업 분야 카드 관리 */}
+            {/* 2. 홈 화면 핵심 사업 분야 카드 관리 (추가 / 수정 / 순서변경 / 삭제) */}
             <div className="border-t border-slate-200 pt-6 space-y-4">
-              <h3 className="text-sm font-bold text-blue-700">
-                2. 홈 화면 [핵심 사업 분야] 섹션 제목 · 카드 3종 수정
-              </h3>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-sm font-bold text-blue-700">
+                    2. 홈 화면 [핵심 사업 분야] 섹션 제목 · 핵심역량 카드 관리 (총 {homeForm.cores.length}개)
+                  </h3>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    핵심역량 카드를 4개, 5개 이상 자유롭게 추가하고 각 카드의 제목, 설명, 썸네일 사진을 입력할 수 있습니다.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleAddCoreCard}
+                  className="rounded-lg bg-blue-600 px-3.5 py-2 text-xs font-bold text-white hover:bg-blue-500 transition-colors cursor-pointer"
+                >
+                  ➕ 핵심역량 카드 추가
+                </button>
+              </div>
+
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -947,62 +1088,137 @@ export default function AdminClient({ slug }: { slug: string }) {
                 </div>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {homeForm.cores.map((core, idx) => (
                   <div
                     key={core.id}
-                    className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3"
+                    className="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3 flex flex-col justify-between"
                   >
-                    <span className="text-xs font-bold text-blue-700">
-                      핵심역량 카드 #{idx + 1}
-                    </span>
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                        카드 제목
-                      </label>
-                      <input
-                        type="text"
-                        value={core.title}
-                        onChange={(e) => {
-                          const next = homeForm.cores.map((c, i) =>
-                            i === idx ? { ...c, title: e.target.value } : c
-                          );
-                          setHomeForm({ ...homeForm, cores: next });
-                        }}
-                        className="w-full rounded border border-slate-300 bg-white px-2.5 py-1.5 text-sm font-bold"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                        카드 설명
-                      </label>
-                      <textarea
-                        rows={3}
-                        value={core.desc}
-                        onChange={(e) => {
-                          const next = homeForm.cores.map((c, i) =>
-                            i === idx ? { ...c, desc: e.target.value } : c
-                          );
-                          setHomeForm({ ...homeForm, cores: next });
-                        }}
-                        className="w-full rounded border border-slate-300 bg-white px-2.5 py-1.5 text-xs"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                        카드 썸네일 사진 교체 (선택)
-                      </label>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) =>
-                          handleCoreImageUpload(idx, e.target.files?.[0] || null)
-                        }
-                        className="w-full text-[11px] text-slate-600 file:mr-2 file:rounded file:border-0 file:bg-blue-600 file:px-2.5 file:py-1 file:text-[11px] file:font-semibold file:text-white"
-                      />
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between gap-2 border-b border-slate-200 pb-2">
+                        <span className="rounded bg-blue-600 px-2.5 py-0.5 text-xs font-bold text-white">
+                          핵심역량 카드 #{idx + 1}
+                        </span>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleMoveCoreCard(idx, -1)}
+                            disabled={idx === 0}
+                            className="rounded border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-bold text-slate-600 hover:bg-slate-100 disabled:opacity-30 cursor-pointer"
+                            title="앞으로 이동"
+                          >
+                            ◀
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleMoveCoreCard(idx, 1)}
+                            disabled={idx === homeForm.cores.length - 1}
+                            className="rounded border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-bold text-slate-600 hover:bg-slate-100 disabled:opacity-30 cursor-pointer"
+                            title="뒤로 이동"
+                          >
+                            ▶
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveCoreCard(idx)}
+                            className="rounded bg-red-50 px-2 py-0.5 text-[11px] font-bold text-red-600 hover:bg-red-500 hover:text-white transition-colors cursor-pointer"
+                          >
+                            삭제
+                          </button>
+                        </div>
+                      </div>
+
+                      {core.imageUrl && (
+                        <div className="h-28 w-full overflow-hidden rounded-lg border border-slate-200 bg-slate-900">
+                          <img
+                            src={core.imageUrl}
+                            alt={core.title}
+                            className="h-full w-full object-cover"
+                          />
+                        </div>
+                      )}
+
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                          카드 제목
+                        </label>
+                        <input
+                          type="text"
+                          value={core.title}
+                          onChange={(e) => {
+                            const next = homeForm.cores.map((c, i) =>
+                              i === idx ? { ...c, title: e.target.value } : c
+                            );
+                            setHomeForm({ ...homeForm, cores: next });
+                          }}
+                          placeholder="예: 특수·일반 주물 소재 생산"
+                          className="w-full rounded border border-slate-300 bg-white px-2.5 py-1.5 text-sm font-bold"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                          카드 설명
+                        </label>
+                        <textarea
+                          rows={3}
+                          value={core.desc}
+                          onChange={(e) => {
+                            const next = homeForm.cores.map((c, i) =>
+                              i === idx ? { ...c, desc: e.target.value } : c
+                            );
+                            setHomeForm({ ...homeForm, cores: next });
+                          }}
+                          placeholder="카드 상세 설명을 입력해 주세요."
+                          className="w-full rounded border border-slate-300 bg-white px-2.5 py-1.5 text-xs"
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="block text-[11px] font-semibold text-slate-600">
+                          카드 썸네일 사진 업로드 또는 이미지 URL
+                        </label>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          onChange={(e) =>
+                            handleCoreImageUpload(idx, e.target.files?.[0] || null)
+                          }
+                          className="w-full text-[11px] text-slate-600 file:mr-2 file:rounded file:border-0 file:bg-blue-600 file:px-2.5 file:py-1 file:text-[11px] file:font-semibold file:text-white"
+                        />
+                        <input
+                          type="text"
+                          value={
+                            core.imageUrl?.startsWith("data:") ? "" : core.imageUrl || ""
+                          }
+                          onChange={(e) => {
+                            const next = homeForm.cores.map((c, i) =>
+                              i === idx ? { ...c, imageUrl: e.target.value } : c
+                            );
+                            setHomeForm({ ...homeForm, cores: next });
+                          }}
+                          placeholder="또는 외부 이미지 주소(URL) 입력"
+                          className="w-full rounded border border-slate-300 bg-white px-2.5 py-1 text-[11px]"
+                        />
+                      </div>
                     </div>
                   </div>
                 ))}
+
+                {/* 새 핵심역량 카드 추가 버튼 박스 */}
+                <button
+                  type="button"
+                  onClick={handleAddCoreCard}
+                  className="flex min-h-[260px] flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-blue-300 bg-blue-50/30 p-6 text-blue-700 hover:bg-blue-50 hover:border-blue-500 transition-all cursor-pointer"
+                >
+                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-xl font-bold text-white shadow-xs">
+                    +
+                  </span>
+                  <span className="text-sm font-bold">
+                    핵심역량 카드 #{homeForm.cores.length + 1} 추가하기
+                  </span>
+                  <span className="text-xs text-slate-500 text-center">
+                    클릭하면 카드 제목·카드 설명·사진을 입력할 수 있는 새 카드가 생성됩니다.
+                  </span>
+                </button>
               </div>
             </div>
 

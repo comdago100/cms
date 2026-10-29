@@ -40,6 +40,7 @@ export interface SiteSettings {
   irMarginNote: string;
   irCredit: string;
   irCreditNote: string;
+  hiddenMenus?: string[]; // 예: ["/ir", "/technology"] 상단 GNB 및 푸터에서 숨길 메뉴 href 목록
 }
 
 export interface SupportInquiry {
@@ -175,6 +176,7 @@ export const defaultSiteSettings: SiteSettings = {
   irMarginNote: "고부가 정밀가공 비중 확대",
   irCredit: "BB+ (안정적)",
   irCreditNote: "기업신용평가 기준",
+  hiddenMenus: [],
 };
 
 /**
