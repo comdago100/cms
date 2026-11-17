@@ -9,14 +9,16 @@
 --   * 매핑이 없으면 접근 거부 (fail-closed)
 -- =====================================================================
 
--- 1) 사용자 프로필 (역할)
+-- 1) 사용자 프로필 (역할 및 기본 기업 slug 매핑)
 create table if not exists public.profiles (
-  id         uuid primary key references auth.users (id) on delete cascade,
-  email      text,
-  role       text not null default 'tenant_admin'
-             check (role in ('tenant_admin', 'super_admin')),
-  created_at timestamptz not null default now()
+  id          uuid primary key references auth.users (id) on delete cascade,
+  email       text,
+  role        text not null default 'tenant_admin'
+              check (role in ('tenant_admin', 'super_admin')),
+  tenant_slug text check (tenant_slug is null or tenant_slug ~ '^[a-z0-9][a-z0-9-]{0,62}$'),
+  created_at  timestamptz not null default now()
 );
+alter table public.profiles add column if not exists tenant_slug text;
 
 -- 2) 사용자 ↔ 기업(slug) 매핑 (한 사용자가 여러 기업을 관리할 수도 있음)
 create table if not exists public.tenant_users (

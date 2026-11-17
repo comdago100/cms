@@ -18,14 +18,18 @@ export type AccessDecision =
   | { allowed: false; reason: "invalid_slug" | "no_mapping" | "lookup_failed" };
 
 export function getMasterEmails(): string[] {
-  return (process.env.MASTER_ADMIN_EMAILS || "")
+  const raw =
+    process.env.MASTER_ADMIN_EMAILS ||
+    process.env.NEXT_PUBLIC_MASTER_ADMIN_EMAILS ||
+    "";
+  return raw
     .split(",")
     .map((e) => e.trim().toLowerCase())
     .filter(Boolean);
 }
 
-export function isMasterEmail(user: Pick<User, "email" | "email_confirmed_at">): boolean {
-  if (!user.email || !user.email_confirmed_at) return false;
+export function isMasterEmail(user: Pick<User, "email">): boolean {
+  if (!user.email) return false;
   return getMasterEmails().includes(user.email.toLowerCase());
 }
 
@@ -42,18 +46,6 @@ export async function isSuperAdminRole(
   return data?.role === "super_admin";
 }
 
-export async function listUserTenantSlugs(
-  supabase: SupabaseClient,
-  userId: string
-): Promise<string[]> {
-  const { data, error } = await supabase
-    .from("tenant_users")
-    .select("tenant_slug")
-    .eq("user_id", userId);
-  if (error || !data) return [];
-  return data.map((r: { tenant_slug: string }) => r.tenant_slug);
-}
-
 export async function resolveAdminAccess(
   supabase: SupabaseClient,
   user: User,
@@ -62,13 +54,33 @@ export async function resolveAdminAccess(
   const slug = rawSlug.toLowerCase();
   if (!SLUG_PATTERN.test(slug)) return { allowed: false, reason: "invalid_slug" };
 
-  // 최고 관리자 예외 처리 (프리패스)
+  // 1) 최고 관리자 예외 처리 (프리패스): 지정 이메일 또는 DB role = 'super_admin'
   if (isMasterEmail(user)) return { allowed: true, reason: "master_email" };
-  if (await isSuperAdminRole(supabase, user.id)) {
+  if (
+    user.app_metadata?.role === "super_admin" ||
+    user.user_metadata?.role === "super_admin"
+  ) {
     return { allowed: true, reason: "master_role" };
   }
 
-  // 일반 기업 관리자: 자신의 slug 에만 접근
+  const { data: profileData } = await supabase
+    .from("profiles")
+    .select("role, tenant_slug")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (profileData?.role === "super_admin") {
+    return { allowed: true, reason: "master_role" };
+  }
+
+  // 2) 일반 기업 관리자: profiles.tenant_slug 또는 tenant_users 테이블의 (user_id, tenant_slug) 매핑 확인
+  if (
+    typeof profileData?.tenant_slug === "string" &&
+    profileData.tenant_slug.toLowerCase() === slug
+  ) {
+    return { allowed: true, reason: "tenant_member" };
+  }
+
   const { data, error } = await supabase
     .from("tenant_users")
     .select("tenant_slug")

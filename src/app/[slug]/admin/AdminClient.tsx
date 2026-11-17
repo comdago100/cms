@@ -255,15 +255,47 @@ export default function AdminClient({ slug }: { slug: string }) {
     setFile(null);
   };
 
-  const handleSaveSettings = (e: React.FormEvent) => {
-    e.preventDefault();
+  const triggerSaveAboutAndSettings = (customAlertMsg?: string) => {
     saveSiteSettings(companySlug, settingsForm);
     saveAboutConfig(companySlug, aboutForm);
     window.dispatchEvent(new Event("cms-save-all-drafts"));
     alert(
-      "회사소개(모든 탭별 상세 내용), 대표 주소(구글지도 연동), 재무지표, 고객지원 연락처 설정이 모두 저장되었습니다!"
+      customAlertMsg ||
+        "💾 회사소개(모든 탭별 상세 내용), 대표 주소(구글지도 연동), 재무지표, 고객지원 연락처 설정이 모두 저장되었습니다!"
     );
   };
+
+  const handleSaveSettings = (e: React.FormEvent) => {
+    e.preventDefault();
+    triggerSaveAboutAndSettings();
+  };
+
+  // 우측 따라다니는 리모컨(AdminPageBlockBuilder)에서 '💾 변경사항 저장' 클릭 시 현재 열려 있는 상단 폼도 함께 저장
+  useEffect(() => {
+    const onSaveParentForm = () => {
+      if (activeTab === "settings") {
+        saveSiteSettings(companySlug, settingsForm);
+        saveAboutConfig(companySlug, aboutForm);
+      } else if (activeTab === "home") {
+        saveHomeConfig(companySlug, homeForm);
+      } else if (activeTab === "inquiries") {
+        saveSiteSettings(companySlug, settingsForm);
+        saveSupportConfig(companySlug, supportForm);
+      } else if (hasSubTabsManager(activeTab)) {
+        saveCategoryTabsConfig(companySlug, activeTab, facilityTabsForm);
+      }
+    };
+    window.addEventListener("cms-save-parent-form", onSaveParentForm);
+    return () => window.removeEventListener("cms-save-parent-form", onSaveParentForm);
+  }, [
+    activeTab,
+    companySlug,
+    settingsForm,
+    aboutForm,
+    homeForm,
+    supportForm,
+    facilityTabsForm,
+  ]);
 
   const handleSaveSupportConfig = () => {
     saveSupportConfig(companySlug, supportForm);
@@ -1455,23 +1487,39 @@ export default function AdminClient({ slug }: { slug: string }) {
                   🏢 회사소개 · 오시는 길(구글지도 주소) · 투자지표 · 고객지원 연락처 수정
                 </h2>
                 <p className="mt-0.5 text-xs text-slate-500">
-                  여기서 수정한 내용은 상단 헤더, 하단 푸터, 회사소개, 오시는 길 구글지도, 투자정보, 고객지원 페이지에 즉시 반영됩니다.
+                  여기서 수정한 내용은 <strong>&lsquo;💾 회사소개 설정 저장하기&rsquo;</strong> 버튼을 누르면 상단 헤더, 하단 푸터, 회사소개, 오시는 길 구글지도, 투자정보, 고객지원 페이지에 즉시 반영됩니다.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={handleResetSettings}
-                className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
-              >
-                기본값으로 복원
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={handleResetSettings}
+                  className="rounded-lg border border-slate-300 px-3 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 cursor-pointer"
+                >
+                  기본값으로 복원
+                </button>
+                <button
+                  type="submit"
+                  className="rounded-xl bg-blue-600 px-5 py-2.5 text-xs font-extrabold text-white shadow-sm hover:bg-blue-500 transition-colors cursor-pointer"
+                >
+                  💾 회사소개 설정 저장하기
+                </button>
+              </div>
             </div>
 
             {/* 기업 기본 개요 및 주소(구글 지도 연동) */}
             <div>
-              <h3 className="text-sm font-bold text-blue-700 mb-3">
-                1. 기업 개요 및 오시는 길(구글 지도) 주소
-              </h3>
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                <h3 className="text-sm font-bold text-blue-700">
+                  1. 기업 개요 및 오시는 길(구글 지도) 주소
+                </h3>
+                <button
+                  type="submit"
+                  className="rounded-lg bg-blue-600 px-3.5 py-1.5 text-xs font-extrabold text-white hover:bg-blue-500 cursor-pointer"
+                >
+                  💾 기업 개요·주소 저장하기
+                </button>
+              </div>
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -1693,13 +1741,26 @@ export default function AdminClient({ slug }: { slug: string }) {
                   {/* (1) CEO 인사말 탭 */}
                   {selectedAboutSubTab === "greeting" && (
                     <div className="space-y-4">
-                      <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                        <h4 className="text-sm font-extrabold text-slate-900">
-                          📌 [CEO 인사말] 탭 내부 내용 수정
-                        </h4>
-                        <span className="text-xs font-semibold text-blue-600">
-                          아래 만능 블록 빌더에서도 현재 [CEO 인사말] 탭이 자동 선택되어 있습니다.
-                        </span>
+                      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                        <div>
+                          <h4 className="text-sm font-extrabold text-slate-900">
+                            📌 [CEO 인사말] 탭 내부 내용 수정
+                          </h4>
+                          <span className="text-xs font-semibold text-blue-600">
+                            아래 만능 블록 빌더에서도 현재 [CEO 인사말] 탭이 자동 선택되어 있습니다.
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            triggerSaveAboutAndSettings(
+                              "💾 [CEO 인사말] 및 회사소개 설정이 홈페이지에 저장되었습니다!"
+                            )
+                          }
+                          className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-extrabold text-white hover:bg-blue-500 shadow-xs cursor-pointer"
+                        >
+                          💾 CEO 인사말 저장하기
+                        </button>
                       </div>
                       <div>
                         <label className="block text-xs font-semibold text-slate-700 mb-1">
@@ -1855,7 +1916,6 @@ export default function AdminClient({ slug }: { slug: string }) {
                               ];
                               const nextCfg = { ...aboutForm, extraOverviewRows: nextRows };
                               setAboutForm(nextCfg);
-                              saveAboutConfig(companySlug, nextCfg);
                             }}
                             className="rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-bold text-white hover:bg-slate-700 cursor-pointer"
                           >
@@ -1948,7 +2008,6 @@ export default function AdminClient({ slug }: { slug: string }) {
                             onChange={(e) => {
                               const nextCfg = { ...aboutForm, visionBadge: e.target.value };
                               setAboutForm(nextCfg);
-                              saveAboutConfig(companySlug, nextCfg);
                             }}
                             className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-bold"
                           />
@@ -2342,6 +2401,26 @@ export default function AdminClient({ slug }: { slug: string }) {
                       </p>
                     </div>
                   )}
+
+                  {/* 모든 회사소개 하위 탭 공통 하단 저장 바 */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 pt-4">
+                    <span className="text-xs font-bold text-slate-600">
+                      💡 현재 편집 중인 <strong>[{aboutForm.tabs.find((t) => t.id === selectedAboutSubTab)?.label || "회사소개"}]</strong> 탭의 내용을 수정하신 후 우측 저장 버튼을 눌러주세요.
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        triggerSaveAboutAndSettings(
+                          `💾 회사소개 [${
+                            aboutForm.tabs.find((t) => t.id === selectedAboutSubTab)?.label || "전체"
+                          }] 탭 및 기본정보 설정이 모두 저장되었습니다!`
+                        )
+                      }
+                      className="rounded-xl bg-blue-600 px-6 py-2.5 text-xs font-extrabold text-white shadow-sm hover:bg-blue-500 transition-colors cursor-pointer"
+                    >
+                      💾 [{aboutForm.tabs.find((t) => t.id === selectedAboutSubTab)?.label || "회사소개"}] 탭 및 회사소개 저장하기
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2490,7 +2569,7 @@ export default function AdminClient({ slug }: { slug: string }) {
                 type="submit"
                 className="rounded-xl bg-blue-600 px-8 py-3.5 text-sm font-bold text-white hover:bg-blue-500 transition-colors cursor-pointer"
               >
-                💾 전체 기본정보 설정 저장하기
+                💾 회사소개 및 기본정보 설정 모두 저장하기
               </button>
             </div>
           </form>

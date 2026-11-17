@@ -205,9 +205,10 @@ export function AdminPageBlockBuilder({
   const handleManualSave = () => {
     saveCustomPageBlocks(slug, page, blocks);
     saveHiddenSkeletonSections(slug, hiddenSkeletonIds);
+    window.dispatchEvent(new Event("cms-save-parent-form"));
     setHasUnsavedChanges(false);
     notify(
-      `💾 [${pageInfo.label}] 변경사항(블록 ${blocks.length}개 및 기본 뼈대 설정)이 홈페이지에 최종 저장·적용되었습니다!`
+      `💾 [${pageInfo.label}] 페이지 설정과 변경사항(블록 ${blocks.length}개 및 기본 뼈대 설정)이 홈페이지에 최종 저장·적용되었습니다!`
     );
   };
 
